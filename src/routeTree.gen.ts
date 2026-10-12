@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AiRouteImport } from './routes/ai'
+import { Route as EvalRouteImport } from './routes/eval'
 import { Route as ItemsRouteImport } from './routes/items'
 import { Route as NotificationsRouteImport } from './routes/notifications'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -23,6 +24,11 @@ const IndexRoute = IndexRouteImport.update({
 const AiRoute = AiRouteImport.update({
   id: '/ai',
   path: '/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EvalRoute = EvalRouteImport.update({
+  id: '/eval',
+  path: '/eval',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ItemsRoute = ItemsRouteImport.update({
@@ -44,6 +50,7 @@ const SettingsRoute = SettingsRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/eval': typeof EvalRoute
   '/items': typeof ItemsRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
@@ -51,6 +58,7 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/eval': typeof EvalRoute
   '/items': typeof ItemsRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
@@ -59,21 +67,30 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/ai': typeof AiRoute
+  '/eval': typeof EvalRoute
   '/items': typeof ItemsRoute
   '/notifications': typeof NotificationsRoute
   '/settings': typeof SettingsRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/ai' | '/items' | '/notifications' | '/settings'
+  fullPaths: '/' | '/ai' | '/eval' | '/items' | '/notifications' | '/settings'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/ai' | '/items' | '/notifications' | '/settings'
-  id: '__root__' | '/' | '/ai' | '/items' | '/notifications' | '/settings'
+  to: '/' | '/ai' | '/eval' | '/items' | '/notifications' | '/settings'
+  id:
+    | '__root__'
+    | '/'
+    | '/ai'
+    | '/eval'
+    | '/items'
+    | '/notifications'
+    | '/settings'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AiRoute: typeof AiRoute
+  EvalRoute: typeof EvalRoute
   ItemsRoute: typeof ItemsRoute
   NotificationsRoute: typeof NotificationsRoute
   SettingsRoute: typeof SettingsRoute
@@ -93,6 +110,13 @@ declare module '@tanstack/react-router' {
       path: '/ai'
       fullPath: '/ai'
       preLoaderRoute: typeof AiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/eval': {
+      id: '/eval'
+      path: '/eval'
+      fullPath: '/eval'
+      preLoaderRoute: typeof EvalRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/items': {
@@ -122,6 +146,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AiRoute: AiRoute,
+  EvalRoute: EvalRoute,
   ItemsRoute: ItemsRoute,
   NotificationsRoute: NotificationsRoute,
   SettingsRoute: SettingsRoute,
