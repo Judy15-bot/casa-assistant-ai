@@ -5,10 +5,11 @@
 // - DeepSeek: https://api-docs.deepseek.com/quick_start/pricing
 //   deepseek-flash 分高峰/非高峰：高峰 input(cache miss) $0.30 / output $1.20，非高峰减半。
 //   这里按高峰价填写（保守估算）。高峰时段：周一至周五 UTC 01:00–04:00 与 06:00–10:00。
-// - Qwen（阿里云百炼国际版 / 新加坡）: https://www.alibabacloud.com/help/en/model-studio/model-pricing
-//   qwen-plus 非思考模式 0–256K：input $0.4 / output $1.2
-//   qwen3-vl-plus 0–32K：input $0.2 / output $1.6
-//   若使用国内版（北京）接口，价格不同，请以控制台为准。
+// - Qwen（阿里云百炼，China (Beijing) 区，与当前 key 的国内版接口一致）:
+//   https://www.alibabacloud.com/help/en/model-studio/model-pricing
+//   qwen-plus 非思考模式 0–128K：input $0.115 / output $0.287
+//   qwen3-vl-plus 0–32K：input $0.143 / output $1.434
+//   （国际版/新加坡价格更高：qwen-plus $0.4/$1.2，qwen3-vl-plus $0.2/$1.6）
 // - 默认模型 openai/gpt-6-astra 走 Lovable AI 通道，按 Lovable 额度计费，没有公开的美元单价，填 null（页面显示「—」）。
 
 export type ModelInfo = {
@@ -23,8 +24,8 @@ export type ModelInfo = {
 export const EVAL_MODELS: ModelInfo[] = [
   { id: "openai/gpt-6-astra", label: "默认模型（gpt-6-astra）", input: null, output: null, vision: true },
   { id: "deepseek/deepseek-flash", label: "DeepSeek（deepseek-flash）", input: 0.3, output: 1.2, vision: true },
-  { id: "qwen/qwen-plus", label: "Qwen 文字（qwen-plus）", input: 0.4, output: 1.2, vision: false },
-  { id: "qwen/qwen3-vl-plus", label: "Qwen 视觉（qwen3-vl-plus）", input: 0.2, output: 1.6, vision: true },
+  { id: "qwen/qwen-plus", label: "Qwen 文字（qwen-plus）", input: 0.115, output: 0.287, vision: false },
+  { id: "qwen/qwen3-vl-plus", label: "Qwen 视觉（qwen3-vl-plus）", input: 0.143, output: 1.434, vision: true },
 ];
 
 export const modelInfo = (id: string) => EVAL_MODELS.find((m) => m.id === id);

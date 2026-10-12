@@ -7,10 +7,11 @@ import { modelInfo } from "./model-prices";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 export const DEFAULT_MODEL = "openai/gpt-6-astra";
 
-// 第三方服务商（仅评测使用）。DeepSeek 官方 OpenAI 兼容地址；Qwen 默认国际版（新加坡），
-// 可通过 QWEN_BASE_URL 覆盖为国内版 https://dashscope.aliyuncs.com/compatible-mode/v1。
+// 第三方服务商（仅评测使用）。DeepSeek 官方 OpenAI 兼容地址；
+// Qwen 用国内版（北京）——2026-10-12 实测当前 QWEN_API_KEY 在国内版返回 200、国际版返回 401。
+// 如换成国际版 key，可设置 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1 覆盖。
 const DEEPSEEK_BASE = "https://api.deepseek.com";
-const QWEN_BASE_INTL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const QWEN_BASE_DEFAULT = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 export const aiSchema = z.object({
   reply_text: z.string(),
@@ -109,7 +110,7 @@ async function runCompatible(system: string, messages: ModelMessage[], model: st
   if (!apiKey) throw new AiError(401, `未配置 ${isDeepseek ? "DEEPSEEK_API_KEY" : "QWEN_API_KEY"}`);
   const provider = createOpenAICompatible({
     name: isDeepseek ? "deepseek" : "qwen",
-    baseURL: isDeepseek ? DEEPSEEK_BASE : (process.env["QWEN_BASE_URL"] || QWEN_BASE_INTL),
+    baseURL: isDeepseek ? DEEPSEEK_BASE : (process.env["QWEN_BASE_URL"] || QWEN_BASE_DEFAULT),
     apiKey,
     supportsStructuredOutputs: false,
   });
