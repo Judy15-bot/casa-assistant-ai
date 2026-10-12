@@ -70,7 +70,9 @@ function start() {
 }
 
 export function useSession() {
-  useEffect(start, []);
+  useEffect(() => {
+    start();
+  }, []);
   return useSyncExternalStore(subscribe, () => session, () => undefined);
 }
 export function useItems() {

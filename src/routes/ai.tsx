@@ -82,7 +82,9 @@ function AiPage() {
   const photoRef = useRef<HTMLInputElement>(null);
   const shotRef = useRef<HTMLInputElement>(null);
   const { q } = Route.useSearch();
-  useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, thinking]);
+  useEffect(() => {
+    end.current?.scrollIntoView({ behavior: "smooth" });
+  }, [msgs, thinking]);
 
   const send = async (text: string, source: Item["source"] = "文字", image?: string) => {
     if (!text.trim() && !image) return;
