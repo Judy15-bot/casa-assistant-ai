@@ -108,7 +108,6 @@ function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void 
             </button>
           ))}
         </div>
-        <p className="shrink-0 text-[11px] text-muted-foreground">点任意物品可编辑删除</p>
       </div>
       <div className="space-y-6">
         {Object.entries(groups).map(([g, list]) => (
