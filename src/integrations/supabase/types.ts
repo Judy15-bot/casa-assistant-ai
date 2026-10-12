@@ -14,6 +14,39 @@ export type Database = {
   }
   public: {
     Tables: {
+      eval_runs: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          model: string
+          prompt_version: string
+          scores: Json
+          summary: Json
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind: string
+          model: string
+          prompt_version: string
+          scores: Json
+          summary: Json
+          user_id?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          model?: string
+          prompt_version?: string
+          scores?: Json
+          summary?: Json
+          user_id?: string
+        }
+        Relationships: []
+      }
       items: {
         Row: {
           category: string

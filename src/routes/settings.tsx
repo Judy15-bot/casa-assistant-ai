@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { LogOut, User } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useSession } from "@/lib/store";
@@ -34,6 +34,9 @@ function SettingsPage() {
         <div className="rounded-3xl border bg-card p-4 text-sm">
           <div className="flex justify-between"><span>版本</span><span className="text-muted-foreground">v1.1</span></div>
         </div>
+        <Link to="/eval" className="flex justify-between rounded-3xl border bg-card p-4 text-sm">
+          <span>评测（开发者）</span><span className="text-muted-foreground">›</span>
+        </Link>
         <button onClick={() => supabase.auth.signOut()} className="flex w-full items-center justify-center gap-2 rounded-full border bg-card py-3 text-sm font-medium text-destructive">
           <LogOut className="h-4 w-4" />退出登录
         </button>
