@@ -370,7 +370,8 @@ function TextResult({ title, note, data }: { title: string; note?: string; data:
           </tbody>
         </table>
       </div>
-    </section>
+    </ResultSection>
+
   );
 }
 
@@ -389,11 +390,13 @@ function ImageSummaryCards({ s }: { s: ImageSummary }) {
 
 function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSummary } }) {
   const [zoom, setZoom] = useState<string | null>(null);
+  const s = data.summary;
   return (
-    <section className="space-y-3 rounded-3xl border bg-card p-4">
-      <h2 className="font-display text-lg font-bold">图片评测结果</h2>
-      <ImageSummaryCards s={data.summary} />
+    <ResultSection title="图片评测结果" data={data}
+      brief={`通过 ${s.passed}/${s.cases} · 编造日期率 ${pct(s.fabricatedDateRate)} · 平均 ${ms(s.avgLatencyMs)}`}>
+      <ImageSummaryCards s={s} />
       <ExtraCards e={extras(data.scores)} />
+
       <div className="space-y-2">
         {data.scores.map((x) => {
           const ops = (x.raw && typeof x.raw === "object" && "ops" in x.raw ? (x.raw as { ops: any[] }).ops : []) ?? [];
@@ -420,7 +423,8 @@ function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSumma
           <img src={`/eval-images/${zoom}`} alt="" className="max-h-full max-w-full rounded-xl" />
         </div>
       )}
-    </section>
+    </ResultSection>
+
   );
 }
 
