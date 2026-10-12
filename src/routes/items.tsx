@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Trash2, Plus, Search, X } from "lucide-react";
+import { Trash2, Plus, Search, X, MapPin, Tags, SearchX, PackagePlus } from "lucide-react";
 import type { Item } from "@/lib/home-ai";
 import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
 import { HeaderActions } from "@/components/HeaderActions";
@@ -42,21 +42,31 @@ function ItemsPage() {
 
       <main className="flex-1 px-4 pb-40">
         <div className="pt-4">
-          <h2 className="font-display text-lg font-semibold">物品</h2>
-          <p className="mt-1 text-xs text-muted-foreground">共 {items.length} 件 · 点任意物品可编辑</p>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-xl font-bold">物品</h2>
+            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">共 {items.length} 件</span>
+          </div>
           <div className="mt-3 flex gap-2">
-            <label className="flex flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2">
-              <Search className="h-4 w-4 text-muted-foreground" />
+            <label className="flex flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2.5 shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/25">
+              <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="按名称搜索物品" className="w-full bg-transparent text-sm outline-none" />
-              {q && <button aria-label="清空" onClick={() => setQ("")}><X className="h-4 w-4 text-muted-foreground" /></button>}
+              {q && <button aria-label="清空" onClick={() => setQ("")}><X className="h-4 w-4 shrink-0 text-muted-foreground" /></button>}
             </label>
-            <button onClick={() => setEdit(blank())} className="flex items-center gap-1 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" />新增</button>
+            <button onClick={() => setEdit(blank())} className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition active:scale-95"><Plus className="h-4 w-4" />新增</button>
           </div>
         </div>
         {kw && shown.length === 0 ? (
-          <p className="pt-10 text-center text-sm text-muted-foreground">没有找到「{q.trim()}」</p>
+          <div className="pt-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted"><SearchX className="h-5 w-5 text-muted-foreground" /></div>
+            <p className="mt-3 text-sm text-muted-foreground">没有找到「{q.trim()}」</p>
+            <button onClick={() => setQ("")} className="mt-1 text-sm font-medium text-primary">清空搜索</button>
+          </div>
         ) : items.length === 0 ? (
-          <p className="pt-10 text-center text-sm text-muted-foreground">还没有物品，点「新增」手动添加</p>
+          <div className="pt-16 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-muted"><PackagePlus className="h-5 w-5 text-muted-foreground" /></div>
+            <p className="mt-3 font-display text-base font-semibold">还没有物品</p>
+            <p className="mt-1 text-sm text-muted-foreground">点「新增」手动添加，或去 AI 助手说一句话</p>
+          </div>
         ) : (
           <ItemsTab items={shown} onEdit={setEdit} />
         )}
@@ -89,21 +99,28 @@ function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void 
   const [by, setBy] = useState<"location" | "category">("location");
   const groups = items.reduce<Record<string, Item[]>>((g, i) => ((g[i[by]] ??= []).push(i), g), {});
   return (
-    <div className="pt-2">
-      <div className="mb-4 inline-flex rounded-full bg-muted p-1 text-sm">
-        {(["location", "category"] as const).map((k) => (
-          <button key={k} onClick={() => setBy(k)} className={`rounded-full px-4 py-1.5 ${by === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground"}`}>
-            {k === "location" ? "按位置" : "按品类"}
-          </button>
-        ))}
+    <div className="pt-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
+        <div className="inline-flex rounded-full bg-muted p-1 text-sm">
+          {(["location", "category"] as const).map((k) => (
+            <button key={k} onClick={() => setBy(k)} className={`rounded-full px-4 py-1.5 transition ${by === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground"}`}>
+              {k === "location" ? "按位置" : "按品类"}
+            </button>
+          ))}
+        </div>
+        <p className="shrink-0 text-[11px] text-muted-foreground">点任意物品可编辑删除</p>
       </div>
-      <div className="space-y-5">
+      <div className="space-y-6">
         {Object.entries(groups).map(([g, list]) => (
           <section key={g}>
-            <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{g} · {list.length}</h3>
+            <div className="mb-2 flex items-center gap-1.5">
+              {by === "location" ? <MapPin className="h-3.5 w-3.5 text-muted-foreground" /> : <Tags className="h-3.5 w-3.5 text-muted-foreground" />}
+              <h3 className="text-sm font-semibold">{g}</h3>
+              <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{list.length}</span>
+            </div>
             <div className="space-y-2">
               {list.map((i) => (
-                <button key={i.id} onClick={() => onEdit(i)} className="block w-full text-left"><ItemCard item={i} /></button>
+                <button key={i.id} onClick={() => onEdit(i)} className="block w-full text-left transition active:scale-[0.99]"><ItemCard item={i} /></button>
               ))}
             </div>
           </section>
