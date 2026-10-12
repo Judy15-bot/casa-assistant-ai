@@ -58,7 +58,7 @@ function ItemsPage() {
         ) : items.length === 0 ? (
           <p className="pt-10 text-center text-sm text-muted-foreground">还没有物品，点「新增」手动添加</p>
         ) : (
-          <ItemsTab items={shown} onEdit={setEdit} onDelete={remove} />
+          <ItemsTab items={shown} onEdit={setEdit} />
         )}
       </main>
 
@@ -85,7 +85,7 @@ function ItemsPage() {
   );
 }
 
-function ItemsTab({ items, onEdit, onDelete }: { items: Item[]; onEdit: (i: Item) => void; onDelete: (i: Item) => void }) {
+function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void }) {
   const [by, setBy] = useState<"location" | "category">("location");
   const groups = items.reduce<Record<string, Item[]>>((g, i) => ((g[i[by]] ??= []).push(i), g), {});
   return (
@@ -103,10 +103,7 @@ function ItemsTab({ items, onEdit, onDelete }: { items: Item[]; onEdit: (i: Item
             <h3 className="mb-2 text-sm font-semibold text-muted-foreground">{g} · {list.length}</h3>
             <div className="space-y-2">
               {list.map((i) => (
-                <div key={i.id} className="flex items-center gap-2">
-                  <button onClick={() => onEdit(i)} className="block min-w-0 flex-1 text-left"><ItemCard item={i} /></button>
-                  <button aria-label={`删除${i.name}`} onClick={() => onDelete(i)} className="rounded-full p-2 text-muted-foreground hover:text-destructive"><Trash2 className="h-4 w-4" /></button>
-                </div>
+                <button key={i.id} onClick={() => onEdit(i)} className="block w-full text-left"><ItemCard item={i} /></button>
               ))}
             </div>
           </section>
