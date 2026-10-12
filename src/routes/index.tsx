@@ -168,7 +168,7 @@ function TabBtn({ active, onClick, icon, label }: { active: boolean; onClick: ()
   );
 }
 
-function ExpiryTag({ expiry }: { expiry?: string }) {
+function ExpiryTag({ expiry }: { expiry?: string | undefined }) {
   const n = daysLeft(expiry);
   if (n === undefined) return <span className="text-xs text-muted-foreground">无保质期</span>;
   const urgent = n <= 7;
