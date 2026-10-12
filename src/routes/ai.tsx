@@ -7,9 +7,8 @@ import { ItemCard, Field } from "@/components/shared";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/ai")({
-  validateSearch: (s: Record<string, unknown>) => ({
-    q: typeof s.q === "string" ? s.q : undefined,
-  }),
+  validateSearch: (s: Record<string, unknown>): { q?: string } =>
+    typeof s["q"] === "string" ? { q: s["q"] } : {},
   head: () => ({
     meta: [
       { title: "AI 助手 · 家底" },
