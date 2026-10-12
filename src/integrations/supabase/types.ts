@@ -14,6 +14,78 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_logs: {
+        Row: {
+          ai_output: Json | null
+          cancelled_count: number | null
+          confirmed_count: number | null
+          created_at: string
+          edited_ops_count: number | null
+          edits: Json | null
+          error: string | null
+          final_ops: Json | null
+          has_image: boolean
+          id: string
+          input_text: string | null
+          input_type: string
+          intent: string | null
+          latency_ms: number | null
+          model: string
+          ok: boolean
+          ops_count: number
+          outcome: string
+          prompt_version: string
+          resolved_at: string | null
+          user_id: string
+        }
+        Insert: {
+          ai_output?: Json | null
+          cancelled_count?: number | null
+          confirmed_count?: number | null
+          created_at?: string
+          edited_ops_count?: number | null
+          edits?: Json | null
+          error?: string | null
+          final_ops?: Json | null
+          has_image?: boolean
+          id?: string
+          input_text?: string | null
+          input_type: string
+          intent?: string | null
+          latency_ms?: number | null
+          model: string
+          ok: boolean
+          ops_count?: number
+          outcome?: string
+          prompt_version: string
+          resolved_at?: string | null
+          user_id?: string
+        }
+        Update: {
+          ai_output?: Json | null
+          cancelled_count?: number | null
+          confirmed_count?: number | null
+          created_at?: string
+          edited_ops_count?: number | null
+          edits?: Json | null
+          error?: string | null
+          final_ops?: Json | null
+          has_image?: boolean
+          id?: string
+          input_text?: string | null
+          input_type?: string
+          intent?: string | null
+          latency_ms?: number | null
+          model?: string
+          ok?: boolean
+          ops_count?: number
+          outcome?: string
+          prompt_version?: string
+          resolved_at?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       eval_runs: {
         Row: {
           created_at: string
