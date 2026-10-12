@@ -2,7 +2,8 @@ import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { Item } from "@/lib/home-ai";
-import { setItems, useItems } from "@/lib/store";
+import { deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
+import { supabase } from "@/integrations/supabase/client";
 import { ItemCard, Field } from "@/components/shared";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -27,7 +28,10 @@ function ItemsPage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
       <header className="sticky top-0 z-10 bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
-        <h1 className="font-display text-2xl font-bold">物品</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="font-display text-2xl font-bold">物品</h1>
+          <button onClick={() => supabase.auth.signOut()} className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">退出登录</button>
+        </div>
         <p className="text-xs text-muted-foreground">共 {items.length} 件 · 点任意物品可编辑</p>
       </header>
 
@@ -43,8 +47,8 @@ function ItemsPage() {
         <EditSheet
           item={edit}
           onClose={() => setEdit(null)}
-          onSave={(it) => { setItems((p) => p.map((i) => (i.id === it.id ? it : i))); setEdit(null); }}
-          onDelete={() => { setItems((p) => p.filter((i) => i.id !== edit.id)); setEdit(null); }}
+          onSave={async (it) => { try { await updateItem(it.id, it); await loadItems(); setEdit(null); } catch { alert("保存失败，请重试"); } }}
+          onDelete={async () => { try { await deleteItem(edit.id); await loadItems(); setEdit(null); } catch { alert("删除失败，请重试"); } }}
         />
       )}
     </div>

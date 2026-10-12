@@ -7,15 +7,15 @@ export type Item = {
   quantity: number;
   unit: string;
   location: string;
-  expiry?: string; // YYYY-MM-DD
+  expiry?: string | undefined; // YYYY-MM-DD
   source: "文字" | "语音" | "拍照" | "截图" | "手动";
   createdAt: string;
 };
 
 export type Op =
   | { kind: "add"; item: Omit<Item, "id" | "createdAt">; lowConf: string[] }
-  | { kind: "update"; targetId?: string; candidates: Item[]; patch: Partial<Item>; label: string }
-  | { kind: "used_up"; targetId?: string; candidates: Item[]; label: string };
+  | { kind: "update"; targetId?: string | undefined; candidates: Item[]; patch: Partial<Item>; label: string }
+  | { kind: "used_up"; targetId?: string | undefined; candidates: Item[]; label: string };
 
 export type Reply =
   | { type: "confirm"; ops: Op[] }

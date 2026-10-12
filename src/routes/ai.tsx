@@ -1,10 +1,54 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Camera, Check, ImageIcon, Mic, Pencil, Send, Sparkles, X } from "lucide-react";
-import { daysLeft, parse, PHOTO_DEMO, SHOT_DEMO, type Item, type Op, type Reply } from "@/lib/home-ai";
-import { setItems, useItems } from "@/lib/store";
+import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, X } from "lucide-react";
+import { type Item, type Op, type Reply } from "@/lib/home-ai";
+import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
+import { askHomeAi } from "@/lib/ai.functions";
 import { ItemCard, Field } from "@/components/shared";
 import { BottomNav } from "@/components/BottomNav";
+
+type AiOut = Extract<Awaited<ReturnType<typeof askHomeAi>>, { ok: true }>["out"];
+
+function toReply(out: AiOut, items: Item[], source: Item["source"]): Reply {
+  const byId = new Map(items.map((i) => [i.id, i]));
+  if (out.ops.length) {
+    const ops: Op[] = out.ops.map((o) => {
+      const exp = o.expiry && /^\d{4}-\d{2}-\d{2}$/.test(o.expiry) ? o.expiry : undefined;
+      if (o.kind === "add")
+        return {
+          kind: "add",
+          lowConf: [...o.low_confidence_fields, ...(o.location ? [] : ["location"]), ...(o.expiry && !exp ? ["expiry"] : [])],
+          item: {
+            name: o.name, category: o.category ?? "其他", quantity: o.quantity ?? 1, unit: o.unit ?? "个",
+            location: o.location ?? "未指定", expiry: exp, source,
+          },
+        };
+      const hit = o.item_id ? byId.get(o.item_id) : undefined;
+      const candidates = hit ? [hit] : items.filter((i) => i.name.includes(o.name) || o.name.includes(i.name));
+      const targetId = hit?.id ?? (candidates.length === 1 ? candidates[0]!.id : undefined);
+      if (o.kind === "used_up") return { kind: "used_up", candidates, targetId, label: o.name };
+      const patch: Partial<Item> = {};
+      if (o.location) patch.location = o.location;
+      if (o.quantity != null) patch.quantity = o.quantity;
+      return { kind: "update", candidates, targetId, patch, label: o.name };
+    });
+    return { type: "confirm", ops };
+  }
+  const hits = out.result_item_ids.map((id) => byId.get(id)).filter((x): x is Item => !!x);
+  return hits.length ? { type: "results", text: out.reply_text, items: hits } : { type: "text", text: out.reply_text };
+}
+
+async function shrink(file: File): Promise<string> {
+  const url = URL.createObjectURL(file);
+  const img = new Image();
+  await new Promise((r, j) => { img.onload = r; img.onerror = j; img.src = url; });
+  const k = Math.min(1, 1280 / Math.max(img.width, img.height));
+  const c = document.createElement("canvas");
+  c.width = img.width * k; c.height = img.height * k;
+  c.getContext("2d")!.drawImage(img, 0, 0, c.width, c.height);
+  URL.revokeObjectURL(url);
+  return c.toDataURL("image/jpeg", 0.82);
+}
 
 export const Route = createFileRoute("/ai")({
   validateSearch: (s: Record<string, unknown>): { q?: string } =>
@@ -22,7 +66,7 @@ export const Route = createFileRoute("/ai")({
   component: AiPage,
 });
 
-type Msg = { id: number; role: "user" | "ai"; text?: string; reply?: Reply; done?: "ok" | "cancel" };
+type Msg = { id: number; role: "user" | "ai"; text?: string | undefined; image?: string | undefined; reply?: Reply; done?: "ok" | "cancel" };
 let mid = 0;
 
 function AiPage() {
@@ -34,41 +78,86 @@ function AiPage() {
   const [thinking, setThinking] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const handled = useRef<string | undefined>(undefined);
+  const recog = useRef<{ stop: () => void } | null>(null);
+  const photoRef = useRef<HTMLInputElement>(null);
+  const shotRef = useRef<HTMLInputElement>(null);
   const { q } = Route.useSearch();
   useEffect(() => end.current?.scrollIntoView({ behavior: "smooth" }), [msgs, thinking]);
 
-  const send = (text: string, preset?: Reply, source: Item["source"] = "文字") => {
-    if (!text.trim()) return;
-    setMsgs((m) => [...m, { id: ++mid, role: "user", text }]);
+  const send = async (text: string, source: Item["source"] = "文字", image?: string) => {
+    if (!text.trim() && !image) return;
+    const history = msgs
+      .filter((m) => m.text || m.reply)
+      .slice(-8)
+      .map((m) => ({
+        role: m.role === "user" ? ("user" as const) : ("assistant" as const),
+        content: (m.text ?? (m.reply?.type === "confirm" ? "（给出了确认卡片）" : m.reply && "text" in m.reply ? m.reply.text : "")).slice(0, 2000),
+      }));
+    setMsgs((m) => [...m, { id: ++mid, role: "user", text: text || undefined, image }]);
     setInput("");
     setThinking(true);
-    setTimeout(() => {
+    try {
+      const res = await askHomeAi({ data: { text, image: image ?? null, history } });
+      const reply: Reply = res.ok ? toReply(res.out, items, source) : { type: "text", text: res.error };
+      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply }]);
+    } catch {
+      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: { type: "text", text: "网络出错了，请稍后再试。" } }]);
+    } finally {
       setThinking(false);
-      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: preset ?? parse(text, items, source) }]);
-    }, 650);
+    }
   };
 
-  const apply = (msgId: number, ops: Op[]) => {
-    setItems((prev) => {
-      let next = [...prev];
+  const apply = async (msgId: number, ops: Op[]) => {
+    try {
+      await addItems(ops.flatMap((o) => (o.kind === "add" ? [o.item] : [])));
       for (const op of ops) {
-        if (op.kind === "add") next.unshift({ ...op.item, id: crypto.randomUUID(), createdAt: new Date().toISOString().slice(0, 10) });
-        else if (op.kind === "update" && op.targetId) next = next.map((i) => (i.id === op.targetId ? { ...i, ...op.patch } : i));
-        else if (op.kind === "used_up" && op.targetId) next = next.filter((i) => i.id !== op.targetId);
+        if (op.kind === "update" && op.targetId) await updateItem(op.targetId, op.patch);
+        else if (op.kind === "used_up" && op.targetId) await deleteItem(op.targetId);
       }
-      return next;
-    });
-    setMsgs((m) => m.map((x) => (x.id === msgId ? { ...x, done: "ok" } : x)));
+      await loadItems();
+      setMsgs((m) => m.map((x) => (x.id === msgId ? { ...x, done: "ok" } : x)));
+    } catch {
+      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: { type: "text", text: "保存失败了，请再点一次确认。" } }]);
+    }
   };
 
   const quickOp = (op: Op) => {
     setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: { type: "confirm", ops: [op] } }]);
   };
 
+  const startVoice = () => {
+    const W = window as unknown as Record<string, unknown>;
+    const SR = (W["SpeechRecognition"] ?? W["webkitSpeechRecognition"]) as (new () => {
+      lang: string; interimResults: boolean; start: () => void; stop: () => void;
+      onresult: (e: { results: ArrayLike<ArrayLike<{ transcript: string }>> }) => void; onend: () => void; onerror: () => void;
+    }) | undefined;
+    if (!SR) { alert("当前浏览器不支持语音输入，请直接打字。"); return; }
+    const r = new SR();
+    r.lang = "zh-CN";
+    r.interimResults = false;
+    let said = "";
+    r.onresult = (e) => { said = Array.from(e.results).map((x) => x[0]!.transcript).join(""); };
+    r.onend = () => { setRecording(false); recog.current = null; if (said) void send(said, "语音"); };
+    r.onerror = () => setRecording(false);
+    recog.current = r;
+    setRecording(true);
+    r.start();
+  };
+
+  const onFile = async (f: File | undefined, source: Item["source"]) => {
+    if (!f) return;
+    try {
+      const img = await shrink(f);
+      void send(source === "拍照" ? "帮我识别这张照片里的物品" : "帮我识别这张订单截图里的物品", source, img);
+    } catch {
+      alert("图片读取失败");
+    }
+  };
+
   useEffect(() => {
     if (q && handled.current !== q) {
       handled.current = q;
-      send(q);
+      void send(q);
       navigate({ to: "/ai", search: {}, replace: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -96,7 +185,10 @@ function AiPage() {
             {msgs.map((m) =>
               m.role === "user" ? (
                 <div key={m.id} className="flex justify-end">
-                  <div className="max-w-[80%] rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">{m.text}</div>
+                  <div className="max-w-[80%] space-y-2 rounded-2xl rounded-br-sm bg-primary px-4 py-2.5 text-sm text-primary-foreground">
+                    {m.image && <img src={m.image} alt="上传的图片" className="max-h-48 rounded-xl" />}
+                    {m.text && <div>{m.text}</div>}
+                  </div>
                 </div>
               ) : (
                 <AiBubble key={m.id} msg={m} onApply={(ops) => apply(m.id, ops)} onCancel={() => setMsgs((all) => all.map((x) => (x.id === m.id ? { ...x, done: "cancel" } : x)))} onQuick={quickOp} />
@@ -125,13 +217,13 @@ function AiPage() {
         <div className="mx-3 mb-2 rounded-3xl border bg-card p-2 shadow-soft">
           {recording ? (
             <button
-              onClick={() => { setRecording(false); send("刚买了两瓶酱油放厨房上柜，明年三月过期", undefined, "语音"); }}
+              onClick={() => recog.current?.stop()}
               className="flex w-full items-center justify-center gap-2 rounded-2xl bg-warn-soft py-3 text-sm font-medium text-warn"
             >
               <span className="h-2.5 w-2.5 animate-ping rounded-full bg-warn" /> 正在聆听… 点击结束
             </button>
           ) : (
-            <form onSubmit={(e) => { e.preventDefault(); send(input); }} className="flex items-center gap-1">
+            <form onSubmit={(e) => { e.preventDefault(); void send(input); }} className="flex items-center gap-1">
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -141,13 +233,15 @@ function AiPage() {
               {input ? (
                 <button type="submit" aria-label="发送" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Send className="h-4 w-4" /></button>
               ) : (
-                <button type="button" aria-label="语音" onClick={() => setRecording(true)} className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Mic className="h-4 w-4" /></button>
+                <button type="button" aria-label="语音" onClick={startVoice} className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Mic className="h-4 w-4" /></button>
               )}
             </form>
           )}
           <div className="mt-1 flex gap-2 px-1">
-            <Chip icon={<Camera className="h-3.5 w-3.5" />} label="拍照识别" onClick={() => send("[照片] 冰箱一层", PHOTO_DEMO)} />
-            <Chip icon={<ImageIcon className="h-3.5 w-3.5" />} label="订单截图" onClick={() => send("[截图] 淘宝订单", SHOT_DEMO)} />
+            <Chip icon={<Camera className="h-3.5 w-3.5" />} label="拍照识别" onClick={() => photoRef.current?.click()} />
+            <Chip icon={<ImageIcon className="h-3.5 w-3.5" />} label="订单截图" onClick={() => shotRef.current?.click()} />
+            <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void onFile(e.target.files?.[0], "拍照"); e.target.value = ""; }} />
+            <input ref={shotRef} type="file" accept="image/*" hidden onChange={(e) => { void onFile(e.target.files?.[0], "截图"); e.target.value = ""; }} />
           </div>
         </div>
         <BottomNav />
