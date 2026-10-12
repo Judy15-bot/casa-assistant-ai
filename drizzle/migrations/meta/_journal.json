@@ -15,6 +15,13 @@
       "when": 1791806152879,
       "tag": "0001_create_eval_runs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791807498516,
+      "tag": "0002_create_ai_logs",
+      "breakpoints": true
     }
   ]
 }

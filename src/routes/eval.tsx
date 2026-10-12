@@ -2,6 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Fragment, useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { SubHeader } from "@/components/HeaderActions";
+import { UsageStats } from "@/components/UsageStats";
 import { PROMPT_VERSION } from "@/lib/prompts";
 import { EVAL_CASES } from "@/eval/cases";
 import { IMAGE_CASES } from "@/eval/image-cases";
@@ -187,6 +188,8 @@ function EvalPage() {
         {text && <TextResult title="文字评测结果" data={text} />}
         {base && <TextResult title="正则基线结果" note="基线计算日期用的是真实的今天，过期类用例仅供参考" data={base} />}
         {img && <ImageResult data={img} />}
+
+        <UsageStats />
 
         <History rows={history} />
       </main>
