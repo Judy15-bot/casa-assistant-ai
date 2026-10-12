@@ -7,10 +7,11 @@ import { modelInfo } from "./model-prices";
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
 export const DEFAULT_MODEL = "openai/gpt-6-astra";
 
-// 第三方服务商（仅评测使用）。DeepSeek 官方 OpenAI 兼容地址；Qwen 默认国际版（新加坡），
-// 可通过 QWEN_BASE_URL 覆盖为国内版 https://dashscope.aliyuncs.com/compatible-mode/v1。
+// 第三方服务商（仅评测使用）。DeepSeek 官方 OpenAI 兼容地址；
+// Qwen 用国内版（北京）——2026-10-12 实测当前 QWEN_API_KEY 在国内版返回 200、国际版返回 401。
+// 如换成国际版 key，可设置 QWEN_BASE_URL=https://dashscope-intl.aliyuncs.com/compatible-mode/v1 覆盖。
 const DEEPSEEK_BASE = "https://api.deepseek.com";
-const QWEN_BASE_INTL = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1";
+const QWEN_BASE_DEFAULT = "https://dashscope.aliyuncs.com/compatible-mode/v1";
 
 export const aiSchema = z.object({
   reply_text: z.string(),
@@ -48,12 +49,12 @@ const JSON_FORMAT_HINT = `
 const hasImage = (messages: ModelMessage[]) =>
   messages.some((m) => Array.isArray(m.content) && m.content.some((p) => (p as { type?: string }).type === "image"));
 
-function mapError(e: unknown, streamError: unknown): never {
+function mapError(e: unknown, streamError: unknown, provider?: string): never {
   if (e instanceof AiError) throw e;
   const err = (streamError ?? e) as { statusCode?: number; message?: string };
   const status = err?.statusCode;
   if (status === 401) throw new AiError(401, "API key 无效或未配置。");
-  if (status === 402) throw new AiError(402, "AI 额度已用完，请在工作区设置中充值后再试。");
+  if (status === 402) throw new AiError(402, provider ? `${provider} 账户余额不足，请到 ${provider} 控制台充值。` : "AI 额度已用完，请在工作区设置中充值后再试。");
   if (status === 429) throw new AiError(429, "请求太频繁了，请稍后再试。");
   if (status === 403) throw new AiError(403, "AI 暂时不可用（访问被拒绝）。");
   if (NoObjectGeneratedError.isInstance(e)) throw new AiError(500, "AI 没给出有效结果，请换个说法再试。");
@@ -109,9 +110,10 @@ async function runCompatible(system: string, messages: ModelMessage[], model: st
   if (!apiKey) throw new AiError(401, `未配置 ${isDeepseek ? "DEEPSEEK_API_KEY" : "QWEN_API_KEY"}`);
   const provider = createOpenAICompatible({
     name: isDeepseek ? "deepseek" : "qwen",
-    baseURL: isDeepseek ? DEEPSEEK_BASE : (process.env["QWEN_BASE_URL"] || QWEN_BASE_INTL),
+    baseURL: isDeepseek ? DEEPSEEK_BASE : (process.env["QWEN_BASE_URL"] || QWEN_BASE_DEFAULT),
     apiKey,
     supportsStructuredOutputs: false,
+    includeUsage: true,
   });
   let streamError: unknown;
   const result = streamText({
@@ -138,6 +140,6 @@ async function runCompatible(system: string, messages: ModelMessage[], model: st
     if (!r.success) throw new AiError(500, "模型返回的 JSON 不符合格式要求");
     return { out: r.data, input_tokens: usage.inputTokens ?? null, output_tokens: usage.outputTokens ?? null };
   } catch (e) {
-    mapError(e, streamError);
+    mapError(e, streamError, isDeepseek ? "DeepSeek" : "Qwen");
   }
 }
