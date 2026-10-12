@@ -10,3 +10,4 @@
 <!-- LOVABLE:END -->
 - Items stored per-user in Cloud table `items` with RLS; AI parsing runs server-side in src/lib/ai.functions.ts (keeps key off the client).
 - Eval harness lives in src/eval (user-owned scoring/gold data, do not edit logic); /eval page stores runs in eval_runs and never touches items — keeps evaluation reproducible against fixed fixtures.
+- runHomeAi routes by model prefix: deepseek/ and qwen/ use Chat Completions + json_object + zod via env keys, everything else uses the Lovable gateway Responses call — keeps the product default untouched while enabling eval comparisons. Prices live in src/lib/model-prices.ts.
