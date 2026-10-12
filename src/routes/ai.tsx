@@ -13,13 +13,14 @@ function toReply(out: AiOut, items: Item[], source: Item["source"]): Reply {
   const byId = new Map(items.map((i) => [i.id, i]));
   if (out.ops.length) {
     const ops: Op[] = out.ops.map((o) => {
+      const exp = o.expiry && /^\d{4}-\d{2}-\d{2}$/.test(o.expiry) ? o.expiry : undefined;
       if (o.kind === "add")
         return {
           kind: "add",
-          lowConf: [...o.low_confidence_fields, ...(o.location ? [] : ["location"])],
+          lowConf: [...o.low_confidence_fields, ...(o.location ? [] : ["location"]), ...(o.expiry && !exp ? ["expiry"] : [])],
           item: {
             name: o.name, category: o.category ?? "其他", quantity: o.quantity ?? 1, unit: o.unit ?? "个",
-            location: o.location ?? "未指定", expiry: o.expiry ?? undefined, source,
+            location: o.location ?? "未指定", expiry: exp, source,
           },
         };
       const hit = o.item_id ? byId.get(o.item_id) : undefined;
