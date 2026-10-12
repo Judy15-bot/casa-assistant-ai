@@ -99,5 +99,5 @@ bun run test       # 单元测试
 
 ## 与 Lovable / GitHub 同步
 
-本仓库与 Lovable 项目双向同步：在 Lovable 里的改动会自动推到这里，推送到已连接分支的改动也会同步回编辑器。
+连接 GitHub 后，本仓库与 Lovable 项目双向同步：在 Lovable 里的改动会自动推到这里，推送到已连接分支的改动也会同步回编辑器。
 `src/integrations/supabase/` 下的客户端、`src/routeTree.gen.ts` 等为自动生成文件，请勿手改。
