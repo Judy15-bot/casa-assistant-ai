@@ -296,7 +296,7 @@ function TextSummaryCards({ s }: { s: EvalSummary }) {
   );
 }
 
-function ResultSection({ title, note, brief, data, children }: { title: string; note?: string; brief: string; data: unknown; children: React.ReactNode }) {
+function ResultSection({ title, note, brief, data, children }: { title: string; note?: string | undefined; brief: string; data: unknown; children: React.ReactNode }) {
   const [open, setOpen] = useState(true);
   useEffect(() => {
     setOpen(true);
