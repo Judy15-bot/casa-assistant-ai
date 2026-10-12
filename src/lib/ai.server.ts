@@ -3,7 +3,7 @@ import { NoObjectGeneratedError, Output, streamText, type ModelMessage } from "a
 import { z } from "zod";
 
 const GATEWAY = "https://ai.gateway.lovable.dev/v1";
-const MODEL = "openai/gpt-6-astra";
+export const DEFAULT_MODEL = "openai/gpt-6-astra";
 
 export const aiSchema = z.object({
   reply_text: z.string(),
@@ -30,7 +30,11 @@ export class AiError extends Error {
   }
 }
 
-export async function runHomeAi(system: string, messages: ModelMessage[]): Promise<AiOut> {
+export async function runHomeAi(
+  system: string,
+  messages: ModelMessage[],
+  model: string = DEFAULT_MODEL,
+): Promise<AiOut> {
   const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new AiError(401, "AI 未配置");
   const provider = createOpenAI({
@@ -40,7 +44,7 @@ export async function runHomeAi(system: string, messages: ModelMessage[]): Promi
   });
   let streamError: unknown;
   const result = streamText({
-    model: provider.responses(MODEL),
+    model: provider.responses(model),
     system,
     messages,
     output: Output.object({ schema: aiSchema }),
