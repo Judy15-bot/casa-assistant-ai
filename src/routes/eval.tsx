@@ -12,6 +12,8 @@ import { runBaseline } from "@/eval/baseline";
 import { runEvalBatch, runImageEval } from "@/eval/eval.functions";
 import type { Json } from "@/integrations/supabase/types";
 import { EVAL_MODELS, costCredits } from "@/lib/model-prices";
+import { MoreVertical } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 
 type Usage = { input_tokens?: number | null; output_tokens?: number | null; cost_usd?: number | null };
 type Extra = { avgLatencyMs: number | null; p90LatencyMs: number | null; avgCostUsd: number | null; costPer1kUsd: number | null; calls: number };
@@ -518,7 +520,17 @@ function History({ rows, onDeleted }: { rows: RunRow[]; onDeleted: () => void | 
                 <td className={td}>{r.model}</td>
                 <td className={td}>{r.prompt_version}</td>
                 <td className={td}>{accuracyCell(r)}</td>
-                <td className={td}><button onClick={() => exportCsv(r)} className="rounded-full border px-2 py-0.5">导出 CSV</button> <button onClick={() => void remove([r.id])} className="rounded-full border border-destructive px-2 py-0.5 text-destructive">删除</button></td>
+                <td className={td}>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger aria-label="更多操作" className="rounded-full p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">
+                      <MoreVertical className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end" className="w-32">
+                      <DropdownMenuItem onSelect={() => exportCsv(r)}>导出 CSV</DropdownMenuItem>
+                      <DropdownMenuItem className="text-destructive focus:text-destructive" onSelect={() => void remove([r.id])}>删除</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                </td>
               </tr>
             ))}
           </tbody>
