@@ -65,7 +65,7 @@ export const Route = createFileRoute("/ai")({
   component: AiPage,
 });
 
-type Msg = { id: number; role: "user" | "ai"; text?: string; image?: string; reply?: Reply; done?: "ok" | "cancel" };
+type Msg = { id: number; role: "user" | "ai"; text?: string | undefined; image?: string | undefined; reply?: Reply; done?: "ok" | "cancel" };
 let mid = 0;
 
 function AiPage() {

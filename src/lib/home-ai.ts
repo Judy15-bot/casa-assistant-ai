@@ -7,7 +7,7 @@ export type Item = {
   quantity: number;
   unit: string;
   location: string;
-  expiry?: string; // YYYY-MM-DD
+  expiry?: string | undefined; // YYYY-MM-DD
   source: "文字" | "语音" | "拍照" | "截图" | "手动";
   createdAt: string;
 };

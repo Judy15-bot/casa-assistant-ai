@@ -31,7 +31,7 @@ export class AiError extends Error {
 }
 
 export async function runHomeAi(system: string, messages: ModelMessage[]): Promise<AiOut> {
-  const apiKey = process.env.LOVABLE_API_KEY;
+  const apiKey = process.env["LOVABLE_API_KEY"];
   if (!apiKey) throw new AiError(401, "AI 未配置");
   const provider = createOpenAI({
     baseURL: GATEWAY,
