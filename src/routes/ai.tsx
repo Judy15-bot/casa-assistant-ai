@@ -4,6 +4,7 @@ import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, Square, X } from "l
 import { type Item, type Op, type Reply } from "@/lib/home-ai";
 import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
 import { askHomeAi } from "@/lib/ai.functions";
+import { resolveAiLog } from "@/lib/ai-log";
 import { ItemCard, Field } from "@/components/shared";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -66,7 +67,7 @@ export const Route = createFileRoute("/ai")({
   component: AiPage,
 });
 
-type Msg = { id: number; role: "user" | "ai"; text?: string | undefined; image?: string | undefined; reply?: Reply; done?: "ok" | "cancel" };
+type Msg = { id: number; role: "user" | "ai"; text?: string | undefined; image?: string | undefined; reply?: Reply; done?: "ok" | "cancel"; logId?: string | null; rawOps?: AiOut["ops"] };
 let mid = 0;
 
 function AiPage() {
@@ -101,10 +102,10 @@ function AiPage() {
     setInput("");
     setThinking(true);
     try {
-      const res = await askHomeAi({ data: { text, image: image ?? null, history } });
+      const res = await askHomeAi({ data: { text, image: image ?? null, history, input_type: source === "手动" ? "文字" : source } });
       if (runId.current !== myRun) return;
       const reply: Reply = res.ok ? toReply(res.out, items, source) : { type: "text", text: res.error };
-      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply }]);
+      setMsgs((m) => [...m, { id: ++mid, role: "ai", reply, logId: res.log_id, ...(res.ok ? { rawOps: res.out.ops } : {}) }]);
     } catch {
       if (runId.current !== myRun) return;
       setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: { type: "text", text: "网络出错了，请稍后再试。" } }]);
@@ -202,7 +203,16 @@ function AiPage() {
                   </div>
                 </div>
               ) : (
-                <AiBubble key={m.id} msg={m} onApply={(ops) => apply(m.id, ops)} onCancel={() => setMsgs((all) => all.map((x) => (x.id === m.id ? { ...x, done: "cancel" } : x)))} onQuick={quickOp} />
+                <AiBubble key={m.id} msg={m}
+                  onApply={(ops, all) => {
+                    if (m.reply?.type === "confirm") resolveAiLog({ logId: m.logId, rawOps: m.rawOps, initial: m.reply.ops, final: all, cancelledAll: false });
+                    void apply(m.id, ops);
+                  }}
+                  onCancel={(all) => {
+                    if (m.reply?.type === "confirm") resolveAiLog({ logId: m.logId, rawOps: m.rawOps, initial: m.reply.ops, final: all, cancelledAll: true });
+                    setMsgs((x) => x.map((y) => (y.id === m.id ? { ...y, done: "cancel" } : y)));
+                  }}
+                  onQuick={quickOp} />
               ),
             )}
             <div ref={end} />
@@ -270,7 +280,8 @@ function Chip({ icon, label, onClick }: { icon: React.ReactNode; label: string; 
   );
 }
 
-function AiBubble({ msg, onApply, onCancel, onQuick }: { msg: Msg; onApply: (ops: Op[]) => void; onCancel: () => void; onQuick: (op: Op) => void }) {
+type OpX = Op & { off?: boolean };
+function AiBubble({ msg, onApply, onCancel, onQuick }: { msg: Msg; onApply: (ops: Op[], all: OpX[]) => void; onCancel: (all: OpX[]) => void; onQuick: (op: Op) => void }) {
   const r = msg.reply!;
   if (r.type === "text") return <div className="max-w-[85%] rounded-2xl rounded-bl-sm bg-card px-4 py-2.5 text-sm">{r.text}</div>;
   if (r.type === "results")
@@ -298,7 +309,7 @@ function SmallBtn({ children, onClick }: { children: React.ReactNode; onClick: (
   return <button onClick={onClick} className="rounded-full bg-muted px-3 py-1 text-xs active:scale-95">{children}</button>;
 }
 
-function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; done?: "ok" | "cancel" | undefined; onApply: (ops: Op[]) => void; onCancel: () => void }) {
+function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; done?: "ok" | "cancel" | undefined; onApply: (ops: Op[], all: OpX[]) => void; onCancel: (all: OpX[]) => void }) {
   const [ops, setOps] = useState<(Op & { off?: boolean })[]>(initial);
   const set = (i: number, o: Op & { off?: boolean }) => setOps((p) => p.map((x, k) => (k === i ? o : x)));
   const active = ops.filter((o) => !o.off);
@@ -352,8 +363,8 @@ function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; don
         <p className="mt-3 text-center text-xs text-muted-foreground">{done === "ok" ? "✓ 已保存" : "已取消，可以直接补充一句，如「不对，是三瓶」"}</p>
       ) : (
         <div className="mt-4 flex gap-2">
-          <button onClick={onCancel} className="flex flex-1 items-center justify-center gap-1 rounded-full border py-2.5 text-sm"><X className="h-4 w-4" />取消</button>
-          <button disabled={!ready || !active.length} onClick={() => onApply(active)} className="flex flex-[2] items-center justify-center gap-1 rounded-full bg-primary py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-40">
+          <button onClick={() => onCancel(ops)} className="flex flex-1 items-center justify-center gap-1 rounded-full border py-2.5 text-sm"><X className="h-4 w-4" />取消</button>
+          <button disabled={!ready || !active.length} onClick={() => onApply(active, ops)} className="flex flex-[2] items-center justify-center gap-1 rounded-full bg-primary py-2.5 text-sm font-medium text-primary-foreground disabled:opacity-40">
             <Check className="h-4 w-4" />{ops.length > 1 ? "全部确认" : "确认"}
           </button>
         </div>
