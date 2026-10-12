@@ -9,6 +9,10 @@ import { EVAL_CASES } from "./cases";
 import { EVAL_ITEMS, EVAL_TODAY } from "./fixtures";
 import type { ImageRun } from "./image-score";
 import type { CaseRun } from "./score";
+import { costUsd } from "@/lib/model-prices";
+
+export type RunUsage = { input_tokens: number | null; output_tokens: number | null; cost_usd: number | null };
+const NO_USAGE: RunUsage = { input_tokens: null, output_tokens: null, cost_usd: null };
 
 const input = z.object({
   caseIds: z.array(z.string().max(10)).min(1).max(10),
@@ -24,15 +28,15 @@ export const runEvalBatch = createServerFn({ method: "POST" })
     const system = buildSystemPrompt(EVAL_ITEMS, EVAL_TODAY);
     const cases = EVAL_CASES.filter((c) => data.caseIds.includes(c.id));
 
-    const runs: CaseRun[] = await Promise.all(
-      cases.map(async (c): Promise<CaseRun> => {
+    const runs: Array<CaseRun & RunUsage> = await Promise.all(
+      cases.map(async (c): Promise<CaseRun & RunUsage> => {
         const t0 = Date.now();
         try {
-          const out = await runHomeAi(system, [{ role: "user", content: [{ type: "text", text: c.input }] }], model);
-          return { id: c.id, out, latency_ms: Date.now() - t0 };
+          const r = await runHomeAi(system, [{ role: "user", content: [{ type: "text", text: c.input }] }], model);
+          return { id: c.id, out: r.out, latency_ms: Date.now() - t0, input_tokens: r.input_tokens, output_tokens: r.output_tokens, cost_usd: costUsd(model, r.input_tokens, r.output_tokens) };
         } catch (e) {
           const error = e instanceof AiError ? e.message : "AI 出错了";
-          return { id: c.id, out: null, error, latency_ms: Date.now() - t0 };
+          return { id: c.id, out: null, error, latency_ms: Date.now() - t0, ...NO_USAGE };
         }
       }),
     );
@@ -57,16 +61,16 @@ export const runImageEval = createServerFn({ method: "POST" })
     const system = buildSystemPrompt(EVAL_ITEMS, EVAL_TODAY);
     const t0 = Date.now();
     try {
-      const out = await runHomeAi(
+      const r = await runHomeAi(
         system,
         [{ role: "user", content: [{ type: "text", text: "请识别图中的物品" }, { type: "image", image: data.image }] }],
         model,
       );
-      const run: ImageRun = { id: data.caseId, out, latency_ms: Date.now() - t0 };
+      const run: ImageRun & RunUsage = { id: data.caseId, out: r.out, latency_ms: Date.now() - t0, input_tokens: r.input_tokens, output_tokens: r.output_tokens, cost_usd: costUsd(model, r.input_tokens, r.output_tokens) };
       return { prompt_version: PROMPT_VERSION, model, run };
     } catch (e) {
       const error = e instanceof AiError ? e.message : "AI 出错了";
-      const run: ImageRun = { id: data.caseId, out: null, error, latency_ms: Date.now() - t0 };
+      const run: ImageRun & RunUsage = { id: data.caseId, out: null, error, latency_ms: Date.now() - t0, ...NO_USAGE };
       return { prompt_version: PROMPT_VERSION, model, run };
     }
   });
