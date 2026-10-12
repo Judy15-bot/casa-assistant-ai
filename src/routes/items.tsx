@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { Item } from "@/lib/home-ai";
 import { deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
-import { supabase } from "@/integrations/supabase/client";
+import { HeaderActions } from "@/components/HeaderActions";
 import { ItemCard, Field } from "@/components/shared";
 import { BottomNav } from "@/components/BottomNav";
 
@@ -30,7 +30,7 @@ function ItemsPage() {
       <header className="sticky top-0 z-10 bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
         <div className="flex items-center justify-between">
           <h1 className="font-display text-2xl font-bold">物品</h1>
-          <button onClick={() => supabase.auth.signOut()} className="rounded-full bg-muted px-3 py-1.5 text-xs text-muted-foreground">退出登录</button>
+          <HeaderActions />
         </div>
         <p className="text-xs text-muted-foreground">共 {items.length} 件 · 点任意物品可编辑</p>
       </header>

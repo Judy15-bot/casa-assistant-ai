@@ -3,6 +3,7 @@ import { CalendarClock } from "lucide-react";
 import { daysLeft } from "@/lib/home-ai";
 import { useItems } from "@/lib/store";
 import { ItemCard } from "@/components/shared";
+import { HeaderActions } from "@/components/HeaderActions";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/")({
@@ -42,12 +43,7 @@ function HomePage() {
           <h1 className="font-display text-2xl font-bold">家底</h1>
           <p className="text-xs text-muted-foreground">共 {items.length} 件物品 · 不用你记</p>
         </div>
-        <button
-          onClick={() => navigate({ to: "/ai" })}
-          className="rounded-full bg-primary px-4 py-2 text-xs font-medium text-primary-foreground active:scale-95"
-        >
-          去问 AI
-        </button>
+        <HeaderActions />
       </header>
 
       <main className="flex-1 px-4 pb-40">
