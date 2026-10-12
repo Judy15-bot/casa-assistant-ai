@@ -296,17 +296,39 @@ function TextSummaryCards({ s }: { s: EvalSummary }) {
   );
 }
 
+function ResultSection({ title, note, brief, data, children }: { title: string; note?: string | undefined; brief: string; data: unknown; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  useEffect(() => {
+    setOpen(true);
+  }, [data]);
+  return (
+    <section className="space-y-3 rounded-3xl border bg-card p-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <h2 className="font-display text-lg font-bold">{title}</h2>
+          {!open && <p className="mt-0.5 truncate text-xs text-muted-foreground">{brief}</p>}
+        </div>
+        <button onClick={() => setOpen(!open)} aria-label={open ? "收起结果" : "展开结果"}
+          className="shrink-0 rounded-full border px-3 py-1 text-xs">{open ? "收起" : "展开"}</button>
+      </div>
+      {note && <p className="rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">{note}</p>}
+      {open && <div className="space-y-3">{children}</div>}
+    </section>
+  );
+}
+
 function TextResult({ title, note, data }: { title: string; note?: string; data: { scores: TextScore[]; summary: EvalSummary } }) {
   const [all, setAll] = useState(false);
   const [open, setOpen] = useState<string | null>(null);
   const s = data.summary;
   const list = all ? data.scores : data.scores.filter((x) => !x.pass);
+  const failed = data.scores.filter((x) => !x.pass).length;
   return (
-    <section className="space-y-3 rounded-3xl border bg-card p-4">
-      <h2 className="font-display text-lg font-bold">{title}</h2>
-      {note && <p className="rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">{note}</p>}
+    <ResultSection title={title} note={note} data={data}
+      brief={`总体 ${pct(s.overall.accuracy)} · 失败 ${failed}/${data.scores.length} · 平均 ${ms(s.avgLatencyMs)}`}>
       <TextSummaryCards s={s} />
       <ExtraCards e={extras(data.scores)} />
+
       <div className="grid gap-3 sm:grid-cols-2">
         <table className="w-full text-xs">
           <thead><tr><th className={th}>分组</th><th className={th}>通过/总数</th><th className={th}>准确率</th></tr></thead>
@@ -348,7 +370,8 @@ function TextResult({ title, note, data }: { title: string; note?: string; data:
           </tbody>
         </table>
       </div>
-    </section>
+    </ResultSection>
+
   );
 }
 
@@ -367,11 +390,13 @@ function ImageSummaryCards({ s }: { s: ImageSummary }) {
 
 function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSummary } }) {
   const [zoom, setZoom] = useState<string | null>(null);
+  const s = data.summary;
   return (
-    <section className="space-y-3 rounded-3xl border bg-card p-4">
-      <h2 className="font-display text-lg font-bold">图片评测结果</h2>
-      <ImageSummaryCards s={data.summary} />
+    <ResultSection title="图片评测结果" data={data}
+      brief={`通过 ${s.passed}/${s.cases} · 编造日期率 ${pct(s.fabricatedDateRate)} · 平均 ${ms(s.avgLatencyMs)}`}>
+      <ImageSummaryCards s={s} />
       <ExtraCards e={extras(data.scores)} />
+
       <div className="space-y-2">
         {data.scores.map((x) => {
           const ops = (x.raw && typeof x.raw === "object" && "ops" in x.raw ? (x.raw as { ops: any[] }).ops : []) ?? [];
@@ -398,7 +423,8 @@ function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSumma
           <img src={`/eval-images/${zoom}`} alt="" className="max-h-full max-w-full rounded-xl" />
         </div>
       )}
-    </section>
+    </ResultSection>
+
   );
 }
 
