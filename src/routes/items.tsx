@@ -35,7 +35,7 @@ function ItemsPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 pb-3 pt-6 backdrop-blur">
         <h1 className="font-display text-2xl font-bold">家底</h1>
         <HeaderActions />
       </header>
