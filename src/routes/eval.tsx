@@ -11,6 +11,23 @@ import { scoreImageCase, summarizeImages, type ImageRun, type ImageScore, type I
 import { runBaseline } from "@/eval/baseline";
 import { runEvalBatch, runImageEval } from "@/eval/eval.functions";
 import type { Json } from "@/integrations/supabase/types";
+import { EVAL_MODELS } from "@/lib/model-prices";
+
+type Usage = { input_tokens?: number | null; output_tokens?: number | null; cost_usd?: number | null };
+type Extra = { avgLatencyMs: number | null; p90LatencyMs: number | null; avgCostUsd: number | null; costPer1kUsd: number | null; calls: number };
+function extras(scores: Array<{ latency_ms?: number | undefined } & Usage>): Extra {
+  const lat = scores.map((s) => s.latency_ms).filter((x): x is number => typeof x === "number").sort((a, b) => a - b);
+  const costs = scores.map((s) => s.cost_usd).filter((x): x is number => typeof x === "number");
+  const avgCost = costs.length ? costs.reduce((a, b) => a + b, 0) / costs.length : null;
+  return {
+    calls: scores.length,
+    avgLatencyMs: lat.length ? Math.round(lat.reduce((a, b) => a + b, 0) / lat.length) : null,
+    p90LatencyMs: lat.length ? lat[Math.min(lat.length - 1, Math.ceil(lat.length * 0.9) - 1)]! : null,
+    avgCostUsd: avgCost,
+    costPer1kUsd: avgCost == null ? null : avgCost * 1000,
+  };
+}
+const usd = (v: number | null | undefined, d = 4) => (v == null ? "—" : `$${v.toFixed(d)}`);
 
 // 仅用于页面显示；真正的默认值由服务器端 DEFAULT_MODEL 决定，跑完后以返回值为准。
 const DEFAULT_MODEL_LABEL = "openai/gpt-6-astra";
@@ -31,8 +48,8 @@ export const Route = createFileRoute("/eval")({
 });
 
 type Kind = "text" | "image" | "baseline";
-type TextScore = CaseScore & { raw?: unknown };
-type ImgScore = ImageScore & { raw?: unknown; file: string };
+type TextScore = CaseScore & Usage & { raw?: unknown };
+type ImgScore = ImageScore & Usage & { raw?: unknown; file: string };
 type RunRow = {
   id: string;
   created_at: string;
@@ -62,6 +79,8 @@ function EvalPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [progress, setProgress] = useState("");
   const [lastModel, setLastModel] = useState<string | null>(null);
+  const [repeat, setRepeat] = useState(1);
+  const [stability, setStability] = useState<string[]>([]);
   const [text, setText] = useState<{ scores: TextScore[]; summary: EvalSummary } | null>(null);
   const [base, setBase] = useState<{ scores: TextScore[]; summary: EvalSummary } | null>(null);
   const [img, setImg] = useState<{ scores: ImgScore[]; summary: ImageSummary } | null>(null);
@@ -81,7 +100,7 @@ function EvalPage() {
       kind,
       model: m,
       prompt_version: PROMPT_VERSION,
-      summary: summary as Json,
+      summary: { ...(summary as object), extra: extras(scores as TextScore[]) } as unknown as Json,
       scores: scores as Json,
     });
     setSaveMsg(error ? `保存失败：${error.message}` : "已保存到历史记录");
@@ -92,11 +111,21 @@ function EvalPage() {
 
   const runText = async () => {
     setBusy("text");
-    const runs: CaseRun[] = [];
+    setStability([]);
+    for (let rep = 1; rep <= repeat; rep++) {
+      const acc = await runTextOnce(rep);
+      setStability((s) => [...s, `第 ${rep} 轮：${pct(acc)}`]);
+    }
+    setBusy(null);
+  };
+
+  const runTextOnce = async (rep: number) => {
+    const tag = repeat > 1 ? `第 ${rep}/${repeat} 轮 · ` : "";
+    const runs: Array<CaseRun & Usage> = [];
     let usedModel = m ?? DEFAULT_MODEL_LABEL;
     for (let i = 0; i < EVAL_CASES.length; i += 5) {
       const batch = EVAL_CASES.slice(i, i + 5);
-      setProgress(`已完成 ${i}/${EVAL_CASES.length}`);
+      setProgress(`${tag}已完成 ${i}/${EVAL_CASES.length}`);
       try {
         const r = await runEvalBatch({ data: { caseIds: batch.map((c) => c.id), ...(m ? { model: m } : {}) } });
         usedModel = r.model;
@@ -105,26 +134,36 @@ function EvalPage() {
         for (const c of batch) runs.push({ id: c.id, out: null, error: e instanceof Error ? e.message : "请求失败" });
       }
     }
-    setProgress(`已完成 ${EVAL_CASES.length}/${EVAL_CASES.length}`);
+    setProgress(`${tag}已完成 ${EVAL_CASES.length}/${EVAL_CASES.length}`);
     const scores: TextScore[] = EVAL_CASES.map((c) => {
       const run = runs.find((r) => r.id === c.id) ?? { id: c.id, out: null, error: "无返回" };
-      return { ...scoreCase(c, run), raw: run.out ?? run.error ?? null };
+      return { ...scoreCase(c, run), input_tokens: run.input_tokens ?? null, output_tokens: run.output_tokens ?? null, cost_usd: run.cost_usd ?? null, raw: run.out ?? run.error ?? null };
     });
     const summary = summarize(scores);
     setText({ scores, summary });
     setLastModel(usedModel);
     await save("text", usedModel, summary, scores);
-    setBusy(null);
+    return summary.overall.accuracy;
   };
 
   const runImages = async () => {
     setBusy("image");
+    setStability([]);
+    for (let rep = 1; rep <= repeat; rep++) {
+      const s = await runImagesOnce(rep);
+      setStability((x) => [...x, `第 ${rep} 轮：通过 ${s.passed}/${s.cases}`]);
+    }
+    setBusy(null);
+  };
+
+  const runImagesOnce = async (rep: number) => {
+    const tag = repeat > 1 ? `第 ${rep}/${repeat} 轮 · ` : "";
     const scores: ImgScore[] = [];
     let usedModel = m ?? DEFAULT_MODEL_LABEL;
     for (let i = 0; i < IMAGE_CASES.length; i++) {
       const c = IMAGE_CASES[i]!;
-      setProgress(`已完成 ${i}/${IMAGE_CASES.length}`);
-      let run: ImageRun;
+      setProgress(`${tag}已完成 ${i}/${IMAGE_CASES.length}`);
+      let run: ImageRun & Usage;
       try {
         const image = await toDataUrl(c.file);
         const r = await runImageEval({ data: { caseId: c.id, image, ...(m ? { model: m } : {}) } });
@@ -133,14 +172,14 @@ function EvalPage() {
       } catch (e) {
         run = { id: c.id, out: null, error: e instanceof Error ? e.message : "请求失败" };
       }
-      scores.push({ ...scoreImageCase(c, run), raw: run.out ?? run.error ?? null, file: c.file });
+      scores.push({ ...scoreImageCase(c, run), input_tokens: run.input_tokens ?? null, output_tokens: run.output_tokens ?? null, cost_usd: run.cost_usd ?? null, raw: run.out ?? run.error ?? null, file: c.file });
     }
-    setProgress(`已完成 ${IMAGE_CASES.length}/${IMAGE_CASES.length}`);
+    setProgress(`${tag}已完成 ${IMAGE_CASES.length}/${IMAGE_CASES.length}`);
     const summary = summarizeImages(scores);
     setImg({ scores, summary });
     setLastModel(usedModel);
     await save("image", usedModel, summary, scores);
-    setBusy(null);
+    return summary;
   };
 
   const runBase = async () => {
@@ -171,17 +210,33 @@ function EvalPage() {
         </div>
 
         <section className="space-y-3 rounded-3xl border bg-card p-4">
-          <label className="block text-sm">
-            模型
-            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="留空使用默认模型"
-              className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
-          </label>
+          <div className="grid gap-3 sm:grid-cols-[1fr_auto]">
+            <label className="block text-sm">
+              模型
+              <select value={model} onChange={(e) => setModel(e.target.value)}
+                className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary">
+                <option value="">默认模型（{DEFAULT_MODEL_LABEL}）</option>
+                {EVAL_MODELS.filter((x) => x.id !== DEFAULT_MODEL_LABEL).map((x) => (
+                  <option key={x.id} value={x.id}>{x.label}{x.vision ? "" : " · 不支持图片"}</option>
+                ))}
+              </select>
+            </label>
+            <label className="block text-sm">
+              重复次数
+              <select value={repeat} onChange={(e) => setRepeat(Number(e.target.value))}
+                className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary">
+                <option value={1}>1 次</option>
+                <option value={3}>3 次</option>
+              </select>
+            </label>
+          </div>
           <div className="flex flex-wrap gap-2">
             <Btn disabled={!!busy} onClick={runText}>跑文字评测（{EVAL_CASES.length} 条）</Btn>
             <Btn disabled={!!busy} onClick={runImages}>跑图片评测（{IMAGE_CASES.length} 张）</Btn>
             <Btn disabled={!!busy} onClick={runBase}>跑正则基线</Btn>
           </div>
           {(busy || progress) && <p className="text-sm text-muted-foreground">{busy ? "运行中 · " : ""}{progress}</p>}
+          {stability.length > 1 && <p className="text-xs">稳定性：{stability.join("；")}</p>}
           {saveMsg && <p className="text-xs text-muted-foreground">{saveMsg}</p>}
         </section>
 
@@ -218,6 +273,18 @@ function Card({ label, value }: { label: string; value: string }) {
 const th = "px-2 py-1.5 text-left font-medium text-muted-foreground";
 const td = "px-2 py-1.5 align-top";
 
+function ExtraCards({ e }: { e: Extra | undefined }) {
+  if (!e) return null;
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Card label="平均耗时" value={ms(e.avgLatencyMs)} />
+      <Card label="P90 耗时" value={ms(e.p90LatencyMs)} />
+      <Card label="平均每次调用成本" value={usd(e.avgCostUsd, 6)} />
+      <Card label="每 1000 次调用估算" value={usd(e.costPer1kUsd, 3)} />
+    </div>
+  );
+}
+
 function TextSummaryCards({ s }: { s: EvalSummary }) {
   return (
     <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -239,6 +306,7 @@ function TextResult({ title, note, data }: { title: string; note?: string; data:
       <h2 className="font-display text-lg font-bold">{title}</h2>
       {note && <p className="rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">{note}</p>}
       <TextSummaryCards s={s} />
+      <ExtraCards e={extras(data.scores)} />
       <div className="grid gap-3 sm:grid-cols-2">
         <table className="w-full text-xs">
           <thead><tr><th className={th}>分组</th><th className={th}>通过/总数</th><th className={th}>准确率</th></tr></thead>
@@ -303,6 +371,7 @@ function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSumma
     <section className="space-y-3 rounded-3xl border bg-card p-4">
       <h2 className="font-display text-lg font-bold">图片评测结果</h2>
       <ImageSummaryCards s={data.summary} />
+      <ExtraCards e={extras(data.scores)} />
       <div className="space-y-2">
         {data.scores.map((x) => {
           const ops = (x.raw && typeof x.raw === "object" && "ops" in x.raw ? (x.raw as { ops: any[] }).ops : []) ?? [];
@@ -346,8 +415,8 @@ function csvEscape(v: unknown) {
 function exportCsv(r: RunRow) {
   const scores: any[] = Array.isArray(r.scores) ? r.scores : [];
   const cols = r.kind === "image"
-    ? ["id", "file", "scene", "pass", "errors", "details", "expected", "predicted", "matched", "noDateItems", "fabricatedDates", "wrongFields", "wrongFlagged", "latency_ms", "raw"]
-    : ["id", "kind", "group", "input", "pass", "errors", "details", "latency_ms", "raw"];
+    ? ["id", "file", "scene", "pass", "errors", "details", "expected", "predicted", "matched", "noDateItems", "fabricatedDates", "wrongFields", "wrongFlagged", "latency_ms", "input_tokens", "output_tokens", "cost_usd", "raw"]
+    : ["id", "kind", "group", "input", "pass", "errors", "details", "latency_ms", "input_tokens", "output_tokens", "cost_usd", "raw"];
   const lines = [cols.join(",")];
   for (const s of scores) {
     lines.push(cols.map((c) => {
@@ -363,15 +432,32 @@ function exportCsv(r: RunRow) {
   URL.revokeObjectURL(a.href);
 }
 
+function errCount(r: RunRow, tag: string) {
+  return (r.summary?.byError ?? []).find((e: any) => e.tag === tag)?.count ?? 0;
+}
+
 function History({ rows }: { rows: RunRow[] }) {
   const [sel, setSel] = useState<string[]>([]);
-  const toggle = (id: string) =>
-    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s.slice(-1), id]));
+  const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const picked = rows.filter((r) => sel.includes(r.id));
+  const tags = [...new Set(picked.flatMap((r) => (r.summary?.byError ?? []).map((e: any) => e.tag as string)))];
+  const ex = (r: RunRow): Extra => r.summary?.extra ?? extras(Array.isArray(r.scores) ? r.scores : []);
+  const acc = (r: RunRow) => (r.kind === "image" ? `${r.summary?.passed ?? 0}/${r.summary?.cases ?? 0}` : pct(r.summary?.overall?.accuracy));
+  const metric: Array<[string, (r: RunRow) => string]> = [
+    ["类型", (r) => KIND_LABEL[r.kind]],
+    ["Prompt", (r) => r.prompt_version],
+    ["时间", (r) => new Date(r.created_at).toLocaleString("zh-CN")],
+    ["准确率 / 通过数", acc],
+    ...(picked.some((r) => r.kind === "image") ? ([["编造日期率", (r: RunRow) => (r.kind === "image" ? pct(r.summary?.fabricatedDateRate) : "—")]] as Array<[string, (r: RunRow) => string]>) : []),
+    ["平均耗时", (r) => ms(ex(r).avgLatencyMs)],
+    ["P90 耗时", (r) => ms(ex(r).p90LatencyMs)],
+    ["每 1000 次调用成本", (r) => usd(ex(r).costPer1kUsd, 3)],
+    ...tags.map((t) => [`出错 · ${t}`, (r: RunRow) => String(errCount(r, t))] as [string, (r: RunRow) => string]),
+  ];
   return (
     <section className="space-y-3 rounded-3xl border bg-card p-4">
       <h2 className="font-display text-lg font-bold">历史记录</h2>
-      <p className="text-xs text-muted-foreground">勾选两条记录可并排对比</p>
+      <p className="text-xs text-muted-foreground">勾选多条记录，在下方「模型对比」表中并排查看</p>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead><tr><th className={th}></th><th className={th}>时间</th><th className={th}>类型</th><th className={th}>模型</th><th className={th}>Prompt</th><th className={th}>准确率</th><th className={th}></th></tr></thead>
@@ -391,24 +477,19 @@ function History({ rows }: { rows: RunRow[] }) {
           </tbody>
         </table>
       </div>
-      {picked.length === 2 && (
-        <div className="grid gap-3 sm:grid-cols-2">
-          {picked.map((r) => (
-            <div key={r.id} className="space-y-2 rounded-2xl border bg-background p-3">
-              <p className="text-xs font-medium">{KIND_LABEL[r.kind]} · {r.model} · {r.prompt_version}<br /><span className="text-muted-foreground">{new Date(r.created_at).toLocaleString("zh-CN")}</span></p>
-              {r.kind === "image" ? <ImageSummaryCards s={r.summary} /> : <TextSummaryCards s={r.summary} />}
-              {r.kind !== "image" && (
-                <table className="w-full text-xs">
-                  <tbody>
-                    {[...(r.summary.byGroup ?? [])].sort((a: any, b: any) => a.accuracy - b.accuracy).map((g: any) => (
-                      <tr key={g.group} className="border-t"><td className={td}>{g.group}</td><td className={td}>{g.passed}/{g.total}</td><td className={td}>{pct(g.accuracy)}</td></tr>
-                    ))}
-                  </tbody>
-                </table>
-              )}
-              <p className="text-xs text-muted-foreground">出错：{(r.summary.byError ?? []).map((e: any) => `${e.tag}×${e.count}`).join("、") || "无"}</p>
-            </div>
-          ))}
+      {picked.length >= 1 && (
+        <div className="space-y-2">
+          <h3 className="text-sm font-medium">模型对比（{picked.length} 条）</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead><tr><th className={th}>指标</th>{picked.map((r) => <th key={r.id} className={th}>{r.model}</th>)}</tr></thead>
+              <tbody>
+                {metric.map(([label, f]) => (
+                  <tr key={label} className="border-t"><td className={td}>{label}</td>{picked.map((r) => <td key={r.id} className={td}>{f(r)}</td>)}</tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       )}
     </section>
