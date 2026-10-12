@@ -14,8 +14,8 @@ export type Item = {
 
 export type Op =
   | { kind: "add"; item: Omit<Item, "id" | "createdAt">; lowConf: string[] }
-  | { kind: "update"; targetId?: string; candidates: Item[]; patch: Partial<Item>; label: string }
-  | { kind: "used_up"; targetId?: string; candidates: Item[]; label: string };
+  | { kind: "update"; targetId?: string | undefined; candidates: Item[]; patch: Partial<Item>; label: string }
+  | { kind: "used_up"; targetId?: string | undefined; candidates: Item[]; label: string };
 
 export type Reply =
   | { type: "confirm"; ops: Op[] }
