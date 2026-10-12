@@ -1,0 +1,413 @@
+import { createFileRoute } from "@tanstack/react-router";
+import { Fragment, useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { SubHeader } from "@/components/HeaderActions";
+import { PROMPT_VERSION } from "@/lib/prompts";
+import { EVAL_CASES } from "@/eval/cases";
+import { IMAGE_CASES } from "@/eval/image-cases";
+import { scoreCase, summarize, type CaseRun, type CaseScore, type EvalSummary } from "@/eval/score";
+import { scoreImageCase, summarizeImages, type ImageRun, type ImageScore, type ImageSummary } from "@/eval/image-score";
+import { runBaseline } from "@/eval/baseline";
+import { runEvalBatch, runImageEval } from "@/eval/eval.functions";
+import type { Json } from "@/integrations/supabase/types";
+
+// 仅用于页面显示；真正的默认值由服务器端 DEFAULT_MODEL 决定，跑完后以返回值为准。
+const DEFAULT_MODEL_LABEL = "openai/gpt-6-astra";
+
+export const Route = createFileRoute("/eval")({
+  head: () => ({
+    meta: [
+      { title: "评测 · 家底" },
+      { name: "description", content: "内部评测：批量测量 AI 助手准确率。" },
+      { property: "og:title", content: "评测 · 家底" },
+      { property: "og:description", content: "内部评测：批量测量 AI 助手准确率。" },
+      { property: "og:type", content: "website" },
+      { name: "twitter:card", content: "summary" },
+      { name: "robots", content: "noindex" },
+    ],
+  }),
+  component: EvalPage,
+});
+
+type Kind = "text" | "image" | "baseline";
+type TextScore = CaseScore & { raw?: unknown };
+type ImgScore = ImageScore & { raw?: unknown; file: string };
+type RunRow = {
+  id: string;
+  created_at: string;
+  kind: Kind;
+  model: string;
+  prompt_version: string;
+  summary: any;
+  scores: any;
+};
+
+const pct = (v: number | null | undefined) => (v == null ? "—" : `${(v * 100).toFixed(1)}%`);
+const ms = (v: number | null | undefined) => (v == null ? "—" : `${(v / 1000).toFixed(2)}s`);
+const KIND_LABEL: Record<Kind, string> = { text: "文字", image: "图片", baseline: "正则基线" };
+
+async function toDataUrl(file: string) {
+  const blob = await (await fetch(`/eval-images/${file}`)).blob();
+  return await new Promise<string>((res, rej) => {
+    const r = new FileReader();
+    r.onload = () => res(String(r.result));
+    r.onerror = rej;
+    r.readAsDataURL(blob);
+  });
+}
+
+function EvalPage() {
+  const [model, setModel] = useState("");
+  const [busy, setBusy] = useState<string | null>(null);
+  const [progress, setProgress] = useState("");
+  const [lastModel, setLastModel] = useState<string | null>(null);
+  const [text, setText] = useState<{ scores: TextScore[]; summary: EvalSummary } | null>(null);
+  const [base, setBase] = useState<{ scores: TextScore[]; summary: EvalSummary } | null>(null);
+  const [img, setImg] = useState<{ scores: ImgScore[]; summary: ImageSummary } | null>(null);
+  const [history, setHistory] = useState<RunRow[]>([]);
+  const [saveMsg, setSaveMsg] = useState("");
+
+  const loadHistory = async () => {
+    const { data } = await supabase.from("eval_runs").select("*").order("created_at", { ascending: false }).limit(100);
+    setHistory((data ?? []) as RunRow[]);
+  };
+  useEffect(() => {
+    void loadHistory();
+  }, []);
+
+  const save = async (kind: Kind, m: string, summary: unknown, scores: unknown) => {
+    const { error } = await supabase.from("eval_runs").insert({
+      kind,
+      model: m,
+      prompt_version: PROMPT_VERSION,
+      summary: summary as Json,
+      scores: scores as Json,
+    });
+    setSaveMsg(error ? `保存失败：${error.message}` : "已保存到历史记录");
+    await loadHistory();
+  };
+
+  const m = model.trim() || undefined;
+
+  const runText = async () => {
+    setBusy("text");
+    const runs: CaseRun[] = [];
+    let usedModel = m ?? DEFAULT_MODEL_LABEL;
+    for (let i = 0; i < EVAL_CASES.length; i += 5) {
+      const batch = EVAL_CASES.slice(i, i + 5);
+      setProgress(`已完成 ${i}/${EVAL_CASES.length}`);
+      try {
+        const r = await runEvalBatch({ data: { caseIds: batch.map((c) => c.id), ...(m ? { model: m } : {}) } });
+        usedModel = r.model;
+        runs.push(...r.runs);
+      } catch (e) {
+        for (const c of batch) runs.push({ id: c.id, out: null, error: e instanceof Error ? e.message : "请求失败" });
+      }
+    }
+    setProgress(`已完成 ${EVAL_CASES.length}/${EVAL_CASES.length}`);
+    const scores: TextScore[] = EVAL_CASES.map((c) => {
+      const run = runs.find((r) => r.id === c.id) ?? { id: c.id, out: null, error: "无返回" };
+      return { ...scoreCase(c, run), raw: run.out ?? run.error ?? null };
+    });
+    const summary = summarize(scores);
+    setText({ scores, summary });
+    setLastModel(usedModel);
+    await save("text", usedModel, summary, scores);
+    setBusy(null);
+  };
+
+  const runImages = async () => {
+    setBusy("image");
+    const scores: ImgScore[] = [];
+    let usedModel = m ?? DEFAULT_MODEL_LABEL;
+    for (let i = 0; i < IMAGE_CASES.length; i++) {
+      const c = IMAGE_CASES[i]!;
+      setProgress(`已完成 ${i}/${IMAGE_CASES.length}`);
+      let run: ImageRun;
+      try {
+        const image = await toDataUrl(c.file);
+        const r = await runImageEval({ data: { caseId: c.id, image, ...(m ? { model: m } : {}) } });
+        usedModel = r.model;
+        run = r.run;
+      } catch (e) {
+        run = { id: c.id, out: null, error: e instanceof Error ? e.message : "请求失败" };
+      }
+      scores.push({ ...scoreImageCase(c, run), raw: run.out ?? run.error ?? null, file: c.file });
+    }
+    setProgress(`已完成 ${IMAGE_CASES.length}/${IMAGE_CASES.length}`);
+    const summary = summarizeImages(scores);
+    setImg({ scores, summary });
+    setLastModel(usedModel);
+    await save("image", usedModel, summary, scores);
+    setBusy(null);
+  };
+
+  const runBase = async () => {
+    setBusy("baseline");
+    const scores: TextScore[] = EVAL_CASES.map((c) => {
+      let run: CaseRun;
+      try {
+        run = runBaseline(c);
+      } catch (e) {
+        run = { id: c.id, out: null, error: e instanceof Error ? e.message : "基线出错" };
+      }
+      return { ...scoreCase(c, run), raw: run.out ?? run.error ?? null };
+    });
+    setProgress(`已完成 ${EVAL_CASES.length}/${EVAL_CASES.length}`);
+    const summary = summarize(scores);
+    setBase({ scores, summary });
+    await save("baseline", "regex-baseline", summary, scores);
+    setBusy(null);
+  };
+
+  return (
+    <div className="mx-auto min-h-screen max-w-3xl bg-background pb-16">
+      <SubHeader title="评测（开发者）" />
+      <main className="space-y-5 px-4">
+        <div className="flex flex-wrap gap-2 text-xs">
+          <span className="rounded-full bg-secondary px-3 py-1">Prompt 版本：{PROMPT_VERSION}</span>
+          <span className="rounded-full bg-secondary px-3 py-1">模型：{lastModel ?? (m || `${DEFAULT_MODEL_LABEL}（默认）`)}</span>
+        </div>
+
+        <section className="space-y-3 rounded-3xl border bg-card p-4">
+          <label className="block text-sm">
+            模型
+            <input value={model} onChange={(e) => setModel(e.target.value)} placeholder="留空使用默认模型"
+              className="mt-1 w-full rounded-2xl border bg-background px-3 py-2 text-sm outline-none focus:border-primary" />
+          </label>
+          <div className="flex flex-wrap gap-2">
+            <Btn disabled={!!busy} onClick={runText}>跑文字评测（{EVAL_CASES.length} 条）</Btn>
+            <Btn disabled={!!busy} onClick={runImages}>跑图片评测（{IMAGE_CASES.length} 张）</Btn>
+            <Btn disabled={!!busy} onClick={runBase}>跑正则基线</Btn>
+          </div>
+          {(busy || progress) && <p className="text-sm text-muted-foreground">{busy ? "运行中 · " : ""}{progress}</p>}
+          {saveMsg && <p className="text-xs text-muted-foreground">{saveMsg}</p>}
+        </section>
+
+        {text && <TextResult title="文字评测结果" data={text} />}
+        {base && <TextResult title="正则基线结果" note="基线计算日期用的是真实的今天，过期类用例仅供参考" data={base} />}
+        {img && <ImageResult data={img} />}
+
+        <History rows={history} />
+      </main>
+    </div>
+  );
+}
+
+function Btn(p: { disabled: boolean; onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button disabled={p.disabled} onClick={p.onClick}
+      className="rounded-full bg-primary px-4 py-2 text-sm font-medium text-primary-foreground disabled:opacity-50 active:scale-95">
+      {p.children}
+    </button>
+  );
+}
+
+function Card({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-2xl border bg-background p-3">
+      <p className="text-xs text-muted-foreground">{label}</p>
+      <p className="mt-1 font-display text-lg font-bold">{value}</p>
+    </div>
+  );
+}
+
+const th = "px-2 py-1.5 text-left font-medium text-muted-foreground";
+const td = "px-2 py-1.5 align-top";
+
+function TextSummaryCards({ s }: { s: EvalSummary }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Card label="总体准确率" value={pct(s.overall.accuracy)} />
+      <Card label="录入准确率" value={`${s.record.passed}/${s.record.total} · ${pct(s.record.accuracy)}`} />
+      <Card label="查询准确率" value={`${s.query.passed}/${s.query.total} · ${pct(s.query.accuracy)}`} />
+      <Card label="平均耗时" value={ms(s.avgLatencyMs)} />
+    </div>
+  );
+}
+
+function TextResult({ title, note, data }: { title: string; note?: string; data: { scores: TextScore[]; summary: EvalSummary } }) {
+  const [all, setAll] = useState(false);
+  const [open, setOpen] = useState<string | null>(null);
+  const s = data.summary;
+  const list = all ? data.scores : data.scores.filter((x) => !x.pass);
+  return (
+    <section className="space-y-3 rounded-3xl border bg-card p-4">
+      <h2 className="font-display text-lg font-bold">{title}</h2>
+      {note && <p className="rounded-xl bg-warn/10 px-3 py-2 text-xs text-warn">{note}</p>}
+      <TextSummaryCards s={s} />
+      <div className="grid gap-3 sm:grid-cols-2">
+        <table className="w-full text-xs">
+          <thead><tr><th className={th}>分组</th><th className={th}>通过/总数</th><th className={th}>准确率</th></tr></thead>
+          <tbody>
+            {[...s.byGroup].sort((a, b) => a.accuracy - b.accuracy).map((g) => (
+              <tr key={g.group} className="border-t"><td className={td}>{g.group}</td><td className={td}>{g.passed}/{g.total}</td><td className={td}>{pct(g.accuracy)}</td></tr>
+            ))}
+          </tbody>
+        </table>
+        <table className="w-full text-xs">
+          <thead><tr><th className={th}>出错类别</th><th className={th}>次数</th></tr></thead>
+          <tbody>
+            {s.byError.length === 0 && <tr><td className={td} colSpan={2}>无</td></tr>}
+            {s.byError.map((e) => <tr key={e.tag} className="border-t"><td className={td}>{e.tag}</td><td className={td}>{e.count}</td></tr>)}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-medium">用例明细（{list.length}）</h3>
+        <button onClick={() => setAll(!all)} className="rounded-full border px-3 py-1 text-xs">{all ? "只看失败" : "显示全部"}</button>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead><tr><th className={th}>编号</th><th className={th}>分组</th><th className={th}>用户输入</th><th className={th}>结果</th><th className={th}>出错类别</th><th className={th}>详情</th></tr></thead>
+          <tbody>
+            {list.map((x) => (
+              <Fragment key={x.id}>
+                <tr className="cursor-pointer border-t hover:bg-muted/50" onClick={() => setOpen(open === x.id ? null : x.id)}>
+                  <td className={td}>{x.id}</td><td className={td}>{x.group}</td><td className={td}>{x.input}</td>
+                  <td className={td}>{x.pass ? <span className="text-primary">✓ 通过</span> : <span className="text-destructive">✗ 失败</span>}</td>
+                  <td className={td}>{x.errors.join("、")}</td>
+                  <td className={td}>{x.details.map((d, i) => <div key={i}>{d}</div>)}</td>
+                </tr>
+                {open === x.id && (
+                  <tr><td colSpan={6} className="bg-muted/40 p-2"><pre className="max-h-80 overflow-auto whitespace-pre-wrap text-[11px]">{JSON.stringify(x.raw, null, 2)}</pre></td></tr>
+                )}
+              </Fragment>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function ImageSummaryCards({ s }: { s: ImageSummary }) {
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <Card label="通过数/总数" value={`${s.passed}/${s.cases}`} />
+      <Card label="召回率" value={pct(s.recall)} />
+      <Card label="准确率" value={pct(s.precision)} />
+      <Card label="编造日期率" value={pct(s.fabricatedDateRate)} />
+      <Card label="置信度覆盖率" value={pct(s.wrongFlaggedRate)} />
+      <Card label="平均耗时" value={ms(s.avgLatencyMs)} />
+    </div>
+  );
+}
+
+function ImageResult({ data }: { data: { scores: ImgScore[]; summary: ImageSummary } }) {
+  const [zoom, setZoom] = useState<string | null>(null);
+  return (
+    <section className="space-y-3 rounded-3xl border bg-card p-4">
+      <h2 className="font-display text-lg font-bold">图片评测结果</h2>
+      <ImageSummaryCards s={data.summary} />
+      <div className="space-y-2">
+        {data.scores.map((x) => {
+          const ops = (x.raw && typeof x.raw === "object" && "ops" in x.raw ? (x.raw as { ops: any[] }).ops : []) ?? [];
+          return (
+            <div key={x.id} className="flex gap-3 rounded-2xl border bg-background p-3 text-xs">
+              <img src={`/eval-images/${x.file}`} alt={x.id} onClick={() => setZoom(x.file)} className="h-20 w-20 shrink-0 cursor-zoom-in rounded-xl object-cover" />
+              <div className="min-w-0 flex-1 space-y-1">
+                <p className="font-medium">{x.id} · {x.scene} · {x.pass ? <span className="text-primary">✓ 通过</span> : <span className="text-destructive">✗ 失败</span>}</p>
+                {x.errors.length > 0 && <p className="text-destructive">{x.errors.join("、")}</p>}
+                {x.details.map((d, i) => <p key={i} className="text-muted-foreground">{d}</p>)}
+                <div className="space-y-0.5 pt-1">
+                  {ops.length === 0 && <p className="text-muted-foreground">（未识别出物品）</p>}
+                  {ops.map((o, i) => (
+                    <p key={i}>• {o.name} × {o.quantity ?? "?"}{o.unit ?? ""} · 过期 {o.expiry ?? "—"}{o.low_confidence_fields?.length ? ` · 低置信度：${o.low_confidence_fields.join("/")}` : ""}</p>
+                  ))}
+                </div>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {zoom && (
+        <div onClick={() => setZoom(null)} className="fixed inset-0 z-50 grid place-items-center bg-foreground/80 p-4">
+          <img src={`/eval-images/${zoom}`} alt="" className="max-h-full max-w-full rounded-xl" />
+        </div>
+      )}
+    </section>
+  );
+}
+
+function accuracyCell(r: RunRow) {
+  if (r.kind === "image") return `${r.summary?.passed ?? 0}/${r.summary?.cases ?? 0} · 编造日期 ${pct(r.summary?.fabricatedDateRate)}`;
+  return pct(r.summary?.overall?.accuracy);
+}
+
+function csvEscape(v: unknown) {
+  const s = v == null ? "" : typeof v === "string" ? v : JSON.stringify(v);
+  return `"${s.replace(/"/g, '""')}"`;
+}
+
+function exportCsv(r: RunRow) {
+  const scores: any[] = Array.isArray(r.scores) ? r.scores : [];
+  const cols = r.kind === "image"
+    ? ["id", "file", "scene", "pass", "errors", "details", "expected", "predicted", "matched", "noDateItems", "fabricatedDates", "wrongFields", "wrongFlagged", "latency_ms", "raw"]
+    : ["id", "kind", "group", "input", "pass", "errors", "details", "latency_ms", "raw"];
+  const lines = [cols.join(",")];
+  for (const s of scores) {
+    lines.push(cols.map((c) => {
+      const v = s[c];
+      return csvEscape(Array.isArray(v) && (c === "errors" || c === "details") ? v.join(" | ") : v);
+    }).join(","));
+  }
+  const blob = new Blob(["\uFEFF" + lines.join("\n")], { type: "text/csv;charset=utf-8" });
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `eval-${r.kind}-${r.model.replace(/[^\w.-]/g, "_")}-${r.prompt_version}-${r.created_at.slice(0, 19).replace(/[:T]/g, "-")}.csv`;
+  a.click();
+  URL.revokeObjectURL(a.href);
+}
+
+function History({ rows }: { rows: RunRow[] }) {
+  const [sel, setSel] = useState<string[]>([]);
+  const toggle = (id: string) =>
+    setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s.slice(-1), id]));
+  const picked = rows.filter((r) => sel.includes(r.id));
+  return (
+    <section className="space-y-3 rounded-3xl border bg-card p-4">
+      <h2 className="font-display text-lg font-bold">历史记录</h2>
+      <p className="text-xs text-muted-foreground">勾选两条记录可并排对比</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead><tr><th className={th}></th><th className={th}>时间</th><th className={th}>类型</th><th className={th}>模型</th><th className={th}>Prompt</th><th className={th}>准确率</th><th className={th}></th></tr></thead>
+          <tbody>
+            {rows.length === 0 && <tr><td className={td} colSpan={7}>暂无记录</td></tr>}
+            {rows.map((r) => (
+              <tr key={r.id} className="border-t">
+                <td className={td}><input type="checkbox" checked={sel.includes(r.id)} onChange={() => toggle(r.id)} /></td>
+                <td className={td}>{new Date(r.created_at).toLocaleString("zh-CN")}</td>
+                <td className={td}>{KIND_LABEL[r.kind]}</td>
+                <td className={td}>{r.model}</td>
+                <td className={td}>{r.prompt_version}</td>
+                <td className={td}>{accuracyCell(r)}</td>
+                <td className={td}><button onClick={() => exportCsv(r)} className="rounded-full border px-2 py-0.5">导出 CSV</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {picked.length === 2 && (
+        <div className="grid gap-3 sm:grid-cols-2">
+          {picked.map((r) => (
+            <div key={r.id} className="space-y-2 rounded-2xl border bg-background p-3">
+              <p className="text-xs font-medium">{KIND_LABEL[r.kind]} · {r.model} · {r.prompt_version}<br /><span className="text-muted-foreground">{new Date(r.created_at).toLocaleString("zh-CN")}</span></p>
+              {r.kind === "image" ? <ImageSummaryCards s={r.summary} /> : <TextSummaryCards s={r.summary} />}
+              {r.kind !== "image" && (
+                <table className="w-full text-xs">
+                  <tbody>
+                    {[...(r.summary.byGroup ?? [])].sort((a: any, b: any) => a.accuracy - b.accuracy).map((g: any) => (
+                      <tr key={g.group} className="border-t"><td className={td}>{g.group}</td><td className={td}>{g.passed}/{g.total}</td><td className={td}>{pct(g.accuracy)}</td></tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+              <p className="text-xs text-muted-foreground">出错：{(r.summary.byError ?? []).map((e: any) => `${e.tag}×${e.count}`).join("、") || "无"}</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
