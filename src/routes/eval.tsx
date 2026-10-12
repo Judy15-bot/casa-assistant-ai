@@ -11,7 +11,7 @@ import { scoreImageCase, summarizeImages, type ImageRun, type ImageScore, type I
 import { runBaseline } from "@/eval/baseline";
 import { runEvalBatch, runImageEval } from "@/eval/eval.functions";
 import type { Json } from "@/integrations/supabase/types";
-import { EVAL_MODELS } from "@/lib/model-prices";
+import { EVAL_MODELS, costCredits } from "@/lib/model-prices";
 
 type Usage = { input_tokens?: number | null; output_tokens?: number | null; cost_usd?: number | null };
 type Extra = { avgLatencyMs: number | null; p90LatencyMs: number | null; avgCostUsd: number | null; costPer1kUsd: number | null; calls: number };
@@ -28,6 +28,14 @@ function extras(scores: Array<{ latency_ms?: number | undefined } & Usage>): Ext
   };
 }
 const usd = (v: number | null | undefined, d = 4) => (v == null ? "—" : `$${v.toFixed(d)}`);
+function credits1k(r: { model: string; scores: unknown }) {
+  const v = (Array.isArray(r.scores) ? r.scores : []).map((s: any) => costCredits(r.model, s?.input_tokens, s?.output_tokens)).filter((x): x is number => x != null);
+  return v.length ? `${((v.reduce((a, b) => a + b, 0) / v.length) * 1000).toFixed(1)} 额度` : "—";
+}
+function avgTok(r: { scores: unknown }, k: "input_tokens" | "output_tokens") {
+  const v = (Array.isArray(r.scores) ? r.scores : []).map((s: any) => s?.[k]).filter((x: unknown): x is number => typeof x === "number");
+  return v.length ? String(Math.round(v.reduce((a, b) => a + b, 0) / v.length)) : "—";
+}
 
 // 仅用于页面显示；真正的默认值由服务器端 DEFAULT_MODEL 决定，跑完后以返回值为准。
 const DEFAULT_MODEL_LABEL = "openai/gpt-6-astra";
@@ -477,7 +485,10 @@ function History({ rows }: { rows: RunRow[] }) {
     ...(picked.some((r) => r.kind === "image") ? ([["编造日期率", (r: RunRow) => (r.kind === "image" ? pct(r.summary?.fabricatedDateRate) : "—")]] as Array<[string, (r: RunRow) => string]>) : []),
     ["平均耗时", (r) => ms(ex(r).avgLatencyMs)],
     ["P90 耗时", (r) => ms(ex(r).p90LatencyMs)],
+    ["平均输入 token", (r) => avgTok(r, "input_tokens")],
+    ["平均输出 token", (r) => avgTok(r, "output_tokens")],
     ["每 1000 次调用成本", (r) => usd(ex(r).costPer1kUsd, 3)],
+    ["每 1000 次调用额度（估）", (r) => credits1k(r)],
     ...tags.map((t) => [`出错 · ${t}`, (r: RunRow) => String(errCount(r, t))] as [string, (r: RunRow) => string]),
   ];
   return (

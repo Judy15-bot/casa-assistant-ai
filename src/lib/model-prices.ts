@@ -10,6 +10,8 @@
 //   qwen-plus 非思考模式 0–128K：input $0.115 / output $0.287
 //   qwen3-vl-plus 0–32K：input $0.143 / output $1.434
 //   （国际版/新加坡价格更高：qwen-plus $0.4/$1.2，qwen3-vl-plus $0.2/$1.6）
+// - 默认模型额度单价：由 2026-10-12 本项目额度账单反推——输出 1.7812 额度/8906 token = 200/百万，
+//   输入 0.28128/7032 = 40/百万（缓存写入 50/百万、缓存命中 4/百万，评测里 SDK 不区分缓存，统一按 40 估）。
 // - 默认模型 openai/gpt-6-astra 走 Lovable AI 通道，按 Lovable 额度计费，没有公开的美元单价，填 null（页面显示「—」）。
 
 export type ModelInfo = {
@@ -19,10 +21,13 @@ export type ModelInfo = {
   input: number | null;
   output: number | null;
   vision: boolean;
+  /** 每百万 token 消耗的 Lovable 额度（仅 Lovable 通道模型）；按未命中缓存的输入价计，为上限估算 */
+  creditsIn?: number;
+  creditsOut?: number;
 };
 
 export const EVAL_MODELS: ModelInfo[] = [
-  { id: "openai/gpt-6-astra", label: "默认模型（gpt-6-astra）", input: null, output: null, vision: true },
+  { id: "openai/gpt-6-astra", label: "默认模型（gpt-6-astra）", input: null, output: null, vision: true, creditsIn: 40, creditsOut: 200 },
   { id: "deepseek/deepseek-flash", label: "DeepSeek（deepseek-flash）", input: 0.3, output: 1.2, vision: true },
   { id: "qwen/qwen-plus", label: "Qwen 文字（qwen-plus）", input: 0.115, output: 0.287, vision: false },
   { id: "qwen/qwen3-vl-plus", label: "Qwen 视觉（qwen3-vl-plus）", input: 0.143, output: 1.434, vision: true },
@@ -35,4 +40,11 @@ export function costUsd(model: string, input_tokens: number | null | undefined, 
   const m = modelInfo(model);
   if (!m || m.input == null || m.output == null || input_tokens == null || output_tokens == null) return null;
   return (input_tokens * m.input + output_tokens * m.output) / 1_000_000;
+}
+
+/** 估算 Lovable 额度消耗；非 Lovable 通道模型返回 null */
+export function costCredits(model: string, input_tokens: number | null | undefined, output_tokens: number | null | undefined) {
+  const m = modelInfo(model);
+  if (!m || m.creditsIn == null || m.creditsOut == null || input_tokens == null || output_tokens == null) return null;
+  return (input_tokens * m.creditsIn + output_tokens * m.creditsOut) / 1_000_000;
 }
