@@ -28,6 +28,10 @@ function extras(scores: Array<{ latency_ms?: number | undefined } & Usage>): Ext
   };
 }
 const usd = (v: number | null | undefined, d = 4) => (v == null ? "—" : `$${v.toFixed(d)}`);
+function avgTok(r: { scores: unknown }, k: "input_tokens" | "output_tokens") {
+  const v = (Array.isArray(r.scores) ? r.scores : []).map((s: any) => s?.[k]).filter((x: unknown): x is number => typeof x === "number");
+  return v.length ? String(Math.round(v.reduce((a, b) => a + b, 0) / v.length)) : "—";
+}
 
 // 仅用于页面显示；真正的默认值由服务器端 DEFAULT_MODEL 决定，跑完后以返回值为准。
 const DEFAULT_MODEL_LABEL = "openai/gpt-6-astra";
@@ -477,6 +481,8 @@ function History({ rows }: { rows: RunRow[] }) {
     ...(picked.some((r) => r.kind === "image") ? ([["编造日期率", (r: RunRow) => (r.kind === "image" ? pct(r.summary?.fabricatedDateRate) : "—")]] as Array<[string, (r: RunRow) => string]>) : []),
     ["平均耗时", (r) => ms(ex(r).avgLatencyMs)],
     ["P90 耗时", (r) => ms(ex(r).p90LatencyMs)],
+    ["平均输入 token", (r) => avgTok(r, "input_tokens")],
+    ["平均输出 token", (r) => avgTok(r, "output_tokens")],
     ["每 1000 次调用成本", (r) => usd(ex(r).costPer1kUsd, 3)],
     ...tags.map((t) => [`出错 · ${t}`, (r: RunRow) => String(errCount(r, t))] as [string, (r: RunRow) => string]),
   ];
