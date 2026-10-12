@@ -45,7 +45,7 @@ export type ImageScore = {
   /** 匹配上的物品中填错的字段数，以及其中被标为"不确定"的个数 */
   wrongFields: number;
   wrongFlagged: number;
-  latency_ms?: number;
+  latency_ms?: number | undefined;
 };
 
 type ActualOp = AiOut["ops"][number];

@@ -45,7 +45,7 @@ export type CaseScore = {
   pass: boolean;
   errors: ErrorTag[];
   details: string[];
-  latency_ms?: number;
+  latency_ms?: number | undefined;
 };
 
 type ActualOp = AiOut["ops"][number];
