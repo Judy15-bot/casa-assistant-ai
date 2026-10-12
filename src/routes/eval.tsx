@@ -254,7 +254,7 @@ function EvalPage() {
 
         <UsageStats />
 
-        <History rows={history} />
+        <History rows={history} onDeleted={loadHistory} />
       </main>
     </div>
   );
@@ -470,8 +470,15 @@ function errCount(r: RunRow, tag: string) {
   return (r.summary?.byError ?? []).find((e: any) => e.tag === tag)?.count ?? 0;
 }
 
-function History({ rows }: { rows: RunRow[] }) {
+function History({ rows, onDeleted }: { rows: RunRow[]; onDeleted: () => void | Promise<void> }) {
   const [sel, setSel] = useState<string[]>([]);
+  const remove = async (ids: string[]) => {
+    if (!ids.length || !window.confirm(`确定删除 ${ids.length} 条评测记录？删除后无法恢复。`)) return;
+    const { error } = await supabase.from("eval_runs").delete().in("id", ids);
+    if (error) { window.alert("删除失败：" + error.message); return; }
+    setSel((s) => s.filter((x) => !ids.includes(x)));
+    await onDeleted();
+  };
   const toggle = (id: string) => setSel((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
   const picked = rows.filter((r) => sel.includes(r.id));
   const tags = [...new Set(picked.flatMap((r) => (r.summary?.byError ?? []).map((e: any) => e.tag as string)))];
@@ -494,7 +501,10 @@ function History({ rows }: { rows: RunRow[] }) {
   return (
     <section className="space-y-3 rounded-3xl border bg-card p-4">
       <h2 className="font-display text-lg font-bold">历史记录</h2>
-      <p className="text-xs text-muted-foreground">勾选多条记录，在下方「模型对比」表中并排查看</p>
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-xs text-muted-foreground">勾选多条记录，在下方「模型对比」表中并排查看</p>
+        {sel.length > 0 && <button onClick={() => void remove(sel)} className="shrink-0 rounded-full border border-destructive px-2 py-0.5 text-xs text-destructive">删除所选（{sel.length}）</button>}
+      </div>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">
           <thead><tr><th className={th}></th><th className={th}>时间</th><th className={th}>类型</th><th className={th}>模型</th><th className={th}>Prompt</th><th className={th}>准确率</th><th className={th}></th></tr></thead>
@@ -508,7 +518,7 @@ function History({ rows }: { rows: RunRow[] }) {
                 <td className={td}>{r.model}</td>
                 <td className={td}>{r.prompt_version}</td>
                 <td className={td}>{accuracyCell(r)}</td>
-                <td className={td}><button onClick={() => exportCsv(r)} className="rounded-full border px-2 py-0.5">导出 CSV</button></td>
+                <td className={td}><button onClick={() => exportCsv(r)} className="rounded-full border px-2 py-0.5">导出 CSV</button> <button onClick={() => void remove([r.id])} className="rounded-full border border-destructive px-2 py-0.5 text-destructive">删除</button></td>
               </tr>
             ))}
           </tbody>
