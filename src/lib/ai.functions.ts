@@ -13,7 +13,7 @@ export const askHomeAi = createServerFn({ method: "POST" })
   .middleware([requireSupabaseAuth])
   .inputValidator((d: unknown) => input.parse(d))
   .handler(async ({ data, context }) => {
-    const { runHomeAi, AiError } = await import("./ai.server");
+    const { runHomeAi, AiError, DEFAULT_MODEL } = await import("./ai.server");
     const { data: rows, error } = await context.supabase
       .from("items")
       .select("id,name,category,quantity,unit,location,expiry")
