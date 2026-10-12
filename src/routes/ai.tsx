@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
-import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, X } from "lucide-react";
+import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, Square, X } from "lucide-react";
 import { type Item, type Op, type Reply } from "@/lib/home-ai";
 import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
 import { askHomeAi } from "@/lib/ai.functions";
@@ -78,6 +78,7 @@ function AiPage() {
   const [thinking, setThinking] = useState(false);
   const end = useRef<HTMLDivElement>(null);
   const handled = useRef<string | undefined>(undefined);
+  const runId = useRef(0);
   const recog = useRef<{ stop: () => void } | null>(null);
   const photoRef = useRef<HTMLInputElement>(null);
   const shotRef = useRef<HTMLInputElement>(null);
@@ -88,6 +89,7 @@ function AiPage() {
 
   const send = async (text: string, source: Item["source"] = "文字", image?: string) => {
     if (!text.trim() && !image) return;
+    const myRun = ++runId.current;
     const history = msgs
       .filter((m) => m.text || m.reply)
       .slice(-8)
@@ -100,13 +102,20 @@ function AiPage() {
     setThinking(true);
     try {
       const res = await askHomeAi({ data: { text, image: image ?? null, history } });
+      if (runId.current !== myRun) return;
       const reply: Reply = res.ok ? toReply(res.out, items, source) : { type: "text", text: res.error };
       setMsgs((m) => [...m, { id: ++mid, role: "ai", reply }]);
     } catch {
+      if (runId.current !== myRun) return;
       setMsgs((m) => [...m, { id: ++mid, role: "ai", reply: { type: "text", text: "网络出错了，请稍后再试。" } }]);
     } finally {
-      setThinking(false);
+      if (runId.current === myRun) setThinking(false);
     }
+  };
+
+  const stopRun = () => {
+    runId.current++;
+    setThinking(false);
   };
 
   const apply = async (msgId: number, ops: Op[]) => {
@@ -196,11 +205,6 @@ function AiPage() {
                 <AiBubble key={m.id} msg={m} onApply={(ops) => apply(m.id, ops)} onCancel={() => setMsgs((all) => all.map((x) => (x.id === m.id ? { ...x, done: "cancel" } : x)))} onQuick={quickOp} />
               ),
             )}
-            {thinking && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <Sparkles className="h-4 w-4 animate-pulse text-primary" /> 正在理解…
-              </div>
-            )}
             <div ref={end} />
           </div>
         ) : (
@@ -232,7 +236,13 @@ function AiPage() {
                 placeholder="说一句：买了三包纸巾放卫生间…"
                 className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
               />
-              {input ? (
+              {thinking ? (
+                <button type="button" aria-label="停止生成" onClick={stopRun} title="点击结束" className="flex h-10 items-center gap-1.5 rounded-full bg-warn-soft px-3 text-sm font-medium text-warn">
+                  <span className="h-2.5 w-2.5 animate-ping rounded-full bg-warn" />
+                  正在执行
+                  <Square className="h-3 w-3 fill-current" />
+                </button>
+              ) : input ? (
                 <button type="submit" aria-label="发送" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Send className="h-4 w-4" /></button>
               ) : (
                 <button type="button" aria-label="语音" onClick={startVoice} className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Mic className="h-4 w-4" /></button>
