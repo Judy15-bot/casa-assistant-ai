@@ -39,10 +39,7 @@ function HomePage() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
       <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
-        <div>
-          <h1 className="font-display text-2xl font-bold">家底</h1>
-          <p className="text-xs text-muted-foreground">共 {items.length} 件物品 · 不用你记</p>
-        </div>
+        <h1 className="font-display text-2xl font-bold">家底</h1>
         <HeaderActions />
       </header>
 

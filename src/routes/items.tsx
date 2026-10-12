@@ -35,23 +35,24 @@ function ItemsPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-10 bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
-        <div className="flex items-center justify-between">
-          <h1 className="font-display text-2xl font-bold">物品</h1>
-          <HeaderActions />
-        </div>
-        <p className="text-xs text-muted-foreground">共 {items.length} 件 · 点任意物品可编辑</p>
-        <div className="mt-3 flex gap-2">
-          <label className="flex flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2">
-            <Search className="h-4 w-4 text-muted-foreground" />
-            <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="按名称搜索物品" className="w-full bg-transparent text-sm outline-none" />
-            {q && <button aria-label="清空" onClick={() => setQ("")}><X className="h-4 w-4 text-muted-foreground" /></button>}
-          </label>
-          <button onClick={() => setEdit(blank())} className="flex items-center gap-1 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" />新增</button>
-        </div>
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-5 pb-3 pt-6 backdrop-blur">
+        <h1 className="font-display text-2xl font-bold">家底</h1>
+        <HeaderActions />
       </header>
 
       <main className="flex-1 px-4 pb-40">
+        <div className="pt-4">
+          <h2 className="font-display text-lg font-semibold">物品</h2>
+          <p className="mt-1 text-xs text-muted-foreground">共 {items.length} 件 · 点任意物品可编辑</p>
+          <div className="mt-3 flex gap-2">
+            <label className="flex flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2">
+              <Search className="h-4 w-4 text-muted-foreground" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="按名称搜索物品" className="w-full bg-transparent text-sm outline-none" />
+              {q && <button aria-label="清空" onClick={() => setQ("")}><X className="h-4 w-4 text-muted-foreground" /></button>}
+            </label>
+            <button onClick={() => setEdit(blank())} className="flex items-center gap-1 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground"><Plus className="h-4 w-4" />新增</button>
+          </div>
+        </div>
         {kw && shown.length === 0 ? (
           <p className="pt-10 text-center text-sm text-muted-foreground">没有找到「{q.trim()}」</p>
         ) : items.length === 0 ? (
