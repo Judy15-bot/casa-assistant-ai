@@ -64,7 +64,7 @@ export const askHomeAi = createServerFn({ method: "POST" })
 
     const t0 = Date.now();
     try {
-      const out = await runHomeAi(system, [...data.history, { role: "user", content }]);
+      const { out } = await runHomeAi(system, [...data.history, { role: "user", content }]);
       const intent = out.ops.length ? "record" : out.result_item_ids.length ? "query" : "chat";
       const log_id = await writeLog({
         latency_ms: Date.now() - t0,
