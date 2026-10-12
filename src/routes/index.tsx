@@ -280,9 +280,9 @@ function SmallBtn({ children, onClick }: { children: React.ReactNode; onClick: (
   return <button onClick={onClick} className="rounded-full bg-muted px-3 py-1 text-xs active:scale-95">{children}</button>;
 }
 
-function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; done?: "ok" | "cancel"; onApply: (ops: Op[]) => void; onCancel: () => void }) {
+function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; done?: "ok" | "cancel" | undefined; onApply: (ops: Op[]) => void; onCancel: () => void }) {
   const [ops, setOps] = useState<(Op & { off?: boolean })[]>(initial);
-  const set = (i: number, o: Op) => setOps((p) => p.map((x, k) => (k === i ? o : x)));
+  const set = (i: number, o: Op & { off?: boolean }) => setOps((p) => p.map((x, k) => (k === i ? o : x)));
   const active = ops.filter((o) => !o.off);
   const ready = active.every((o) => o.kind === "add" || o.targetId);
 
@@ -297,7 +297,7 @@ function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; don
                 {op.kind === "add" ? "新增" : op.kind === "used_up" ? "标记用完" : "更新"}
               </span>
               {!done && ops.length > 1 && (
-                <button onClick={() => set(i, { ...op, off: !op.off } as Op)} className="text-xs text-muted-foreground">{op.off ? "恢复" : "取消此条"}</button>
+                <button onClick={() => set(i, { ...op, off: !op.off })} className="text-xs text-muted-foreground">{op.off ? "恢复" : "取消此条"}</button>
               )}
             </div>
             {op.kind === "add" ? (
