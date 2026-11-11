@@ -32,7 +32,7 @@ export function ItemThumb({ item, size = 56 }: { item: Item; size?: number }) {
   return (
     <div className="grid shrink-0 place-items-center" style={{ width: size, height: size }}>
       {item.image ? (
-        <img src={item.image} alt={item.name} className="sticker max-h-full max-w-full object-contain" />
+        <img src={item.image} alt={item.name} style={{ width: size, height: size }} className="sticker object-contain" />
       ) : (
         <div className="grid h-full w-full place-items-center rounded-2xl bg-muted"><Package className="h-5 w-5 text-muted-foreground" /></div>
       )}
