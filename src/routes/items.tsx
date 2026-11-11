@@ -37,12 +37,12 @@ function ItemsPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-4 pb-3 pt-6 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 pb-3 pt-6 backdrop-blur">
         <Logo />
         <HeaderActions />
       </header>
 
-      <main className="flex-1 px-4 pb-32">
+      <main className="flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+120px)]">
         <div className="pt-4">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-2xl text-ink">物品库</h2>

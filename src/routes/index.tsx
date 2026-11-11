@@ -46,12 +46,12 @@ function HomePage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-4 pb-3 pt-6 backdrop-blur">
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-background px-4 pb-3 pt-6 backdrop-blur">
         <Logo />
         <HeaderActions />
       </header>
 
-      <main className="flex-1 px-4 pb-32">
+      <main className="flex-1 px-4 pb-[calc(env(safe-area-inset-bottom)+120px)]">
         <div className="space-y-6 pt-3">
           <section className="rounded-3xl border-2 border-ink bg-ink p-3 shadow-soft">
             <div className="mb-2.5 flex items-center gap-1.5 px-1 text-xs font-medium text-ink-foreground/70"><CalendarClock className="h-3.5 w-3.5" />家底概览</div>
