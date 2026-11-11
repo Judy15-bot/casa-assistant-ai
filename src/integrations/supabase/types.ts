@@ -125,6 +125,7 @@ export type Database = {
           created_at: string
           expiry: string | null
           id: string
+          image_url: string | null
           location: string
           name: string
           quantity: number
@@ -137,6 +138,7 @@ export type Database = {
           created_at?: string
           expiry?: string | null
           id?: string
+          image_url?: string | null
           location?: string
           name: string
           quantity?: number
@@ -149,6 +151,7 @@ export type Database = {
           created_at?: string
           expiry?: string | null
           id?: string
+          image_url?: string | null
           location?: string
           name?: string
           quantity?: number

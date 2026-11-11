@@ -10,6 +10,7 @@ export type Item = {
   expiry?: string | undefined; // YYYY-MM-DD
   source: "文字" | "语音" | "拍照" | "截图" | "手动";
   createdAt: string;
+  image?: string | undefined;
 };
 
 export type Op =

@@ -14,17 +14,18 @@ const subscribe = (l: () => void) => {
 
 type Row = {
   id: string; name: string; category: string; quantity: number; unit: string;
-  location: string; expiry: string | null; source: string; created_at: string;
+  location: string; expiry: string | null; source: string; created_at: string; image_url?: string | null;
 };
 const toItem = (r: Row): Item => ({
   id: r.id, name: r.name, category: r.category, quantity: Number(r.quantity), unit: r.unit,
   location: r.location, expiry: r.expiry ?? undefined, source: r.source as Item["source"],
-  createdAt: r.created_at.slice(0, 10),
+  createdAt: r.created_at.slice(0, 10), image: r.image_url ?? undefined,
 });
 const toRow = (i: Partial<Item>) => {
   const r: Record<string, unknown> = {};
   for (const k of ["name", "category", "quantity", "unit", "location", "source"] as const) if (i[k] !== undefined) r[k] = i[k];
   if ("expiry" in i) r["expiry"] = i.expiry || null;
+  if ("image" in i) r["image_url"] = i.image || null;
   return r;
 };
 

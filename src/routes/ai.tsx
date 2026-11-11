@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, Square, X } from "lucide-react";
 import { type Item, type Op, type Reply } from "@/lib/home-ai";
+import { cutoutImage } from "@/lib/cutout";
 import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
 import { askHomeAi } from "@/lib/ai.functions";
 import { resolveAiLog } from "@/lib/ai-log";
@@ -102,9 +103,15 @@ function AiPage() {
     setInput("");
     setThinking(true);
     try {
+      // 拍照时并行抠图：只识别出 1 件物品时，把抠好的图挂到这件物品上
+      const cut = source === "拍照" && image ? cutoutImage(image) : null;
       const res = await askHomeAi({ data: { text, image: image ?? null, history, input_type: source === "手动" ? "文字" : source } });
       if (runId.current !== myRun) return;
       const reply: Reply = res.ok ? toReply(res.out, items, source) : { type: "text", text: res.error };
+      if (cut && reply.type === "confirm") {
+        const adds = reply.ops.filter((o) => o.kind === "add");
+        if (adds.length === 1) { const pic = await cut; if (pic && runId.current === myRun) (adds[0] as Extract<Op, { kind: "add" }>).item.image = pic; }
+      }
       setMsgs((m) => [...m, { id: ++mid, role: "ai", reply, logId: res.log_id, ...(res.ok ? { rawOps: res.out.ops } : {}) }]);
     } catch {
       if (runId.current !== myRun) return;
@@ -289,7 +296,7 @@ function AiBubble({ msg, onApply, onCancel, onQuick }: { msg: Msg; onApply: (ops
       <div className="space-y-2">
         <div className="text-sm">{r.text}</div>
         {r.items.map((i) => (
-          <ItemCard
+          <div key={i.id} className="rounded-2xl border bg-card"><ItemCard
             key={i.id}
             item={i}
             actions={
@@ -298,7 +305,7 @@ function AiBubble({ msg, onApply, onCancel, onQuick }: { msg: Msg; onApply: (ops
                 <SmallBtn onClick={() => onQuick({ kind: "update", targetId: i.id, candidates: [i], patch: { quantity: Math.max(0, i.quantity - 1) }, label: i.name })}>用掉 1{i.unit}</SmallBtn>
               </>
             }
-          />
+          /></div>
         ))}
       </div>
     );
@@ -316,7 +323,7 @@ function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; don
   const ready = active.every((o) => o.kind === "add" || o.targetId);
 
   return (
-    <div className={`rounded-3xl border-2 bg-card p-4 ${done ? "opacity-60" : "border-primary/30"}`}>
+    <div className={`rounded-3xl border-2 bg-card p-4 ${done ? "opacity-60" : "border-ink"}`}>
       <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary"><Sparkles className="h-4 w-4" />请确认 {ops.length} 项操作</div>
       <div className="space-y-3">
         {ops.map((op, i) => (
@@ -329,6 +336,7 @@ function ConfirmCard({ ops: initial, done, onApply, onCancel }: { ops: Op[]; don
                 <button onClick={() => set(i, { ...op, off: !op.off })} className="text-xs text-muted-foreground">{op.off ? "恢复" : "取消此条"}</button>
               )}
             </div>
+            {op.kind === "add" && op.item.image && <img src={op.item.image} alt={op.item.name} className="sticker mx-auto mb-2 h-24 object-contain" />}
             {op.kind === "add" ? (
               <div className="grid grid-cols-2 gap-2 text-sm">
                 <Field label="名称" value={op.item.name} onChange={(v) => set(i, { ...op, item: { ...op.item, name: v } })} disabled={!!done} />

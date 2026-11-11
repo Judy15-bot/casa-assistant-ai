@@ -22,6 +22,13 @@
       "when": 1791807498516,
       "tag": "0002_create_ai_logs",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794401369429,
+      "tag": "0003_item_images",
+      "breakpoints": true
     }
   ]
 }

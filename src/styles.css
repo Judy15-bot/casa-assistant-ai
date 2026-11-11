@@ -6,7 +6,7 @@
 
 @theme inline {
   --font-sans: "Noto Sans SC", system-ui, sans-serif;
-  --font-display: "Noto Serif SC", serif;
+  --font-display: "Noto Sans SC", system-ui, sans-serif;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -31,34 +31,48 @@
   --color-warn: var(--warn);
   --color-warn-soft: var(--warn-soft);
   --color-border: var(--border);
+  --color-ink: var(--ink);
+  --color-ink-foreground: var(--ink-foreground);
+  --color-tag-food: var(--tag-food);
+  --color-tag-skin: var(--tag-skin);
+  --color-tag-med: var(--tag-med);
+  --color-tag-home: var(--tag-home);
+  --color-tag-home-foreground: var(--tag-home-foreground);
   --color-input: var(--input);
   --color-ring: var(--ring);
 }
 
 :root {
   --radius: 1rem;
-  --background: oklch(0.97 0.014 85);
-  --foreground: oklch(0.24 0.03 150);
-  --card: oklch(0.995 0.006 85);
-  --card-foreground: oklch(0.24 0.03 150);
-  --popover: oklch(0.995 0.006 85);
-  --popover-foreground: oklch(0.24 0.03 150);
-  --primary: oklch(0.42 0.08 155);
-  --primary-foreground: oklch(0.98 0.01 85);
-  --secondary: oklch(0.92 0.03 140);
-  --secondary-foreground: oklch(0.3 0.06 155);
-  --muted: oklch(0.93 0.015 85);
-  --muted-foreground: oklch(0.5 0.02 120);
-  --accent: oklch(0.88 0.08 85);
-  --accent-foreground: oklch(0.3 0.05 70);
-  --destructive: oklch(0.58 0.19 30);
-  --destructive-foreground: oklch(0.98 0.01 85);
-  --warn: oklch(0.62 0.17 45);
-  --warn-soft: oklch(0.93 0.05 60);
-  --border: oklch(0.88 0.02 85);
-  --input: oklch(0.88 0.02 85);
-  --ring: oklch(0.42 0.08 155);
-  --shadow-soft: 0 10px 30px -12px oklch(0.3 0.05 150 / 0.25);
+  --background: oklch(0.962 0.002 90);
+  --foreground: oklch(0.17 0.005 270);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.17 0.005 270);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.17 0.005 270);
+  --primary: oklch(0.47 0.17 28);
+  --primary-foreground: oklch(0.99 0 0);
+  --secondary: oklch(0.93 0.004 90);
+  --secondary-foreground: oklch(0.2 0.005 270);
+  --muted: oklch(0.93 0.003 90);
+  --muted-foreground: oklch(0.52 0.008 270);
+  --accent: oklch(0.47 0.17 28);
+  --accent-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.5 0.19 27);
+  --destructive-foreground: oklch(0.99 0 0);
+  --warn: oklch(0.5 0.18 28);
+  --warn-soft: oklch(0.94 0.04 25);
+  --border: oklch(0.9 0.003 90);
+  --input: oklch(0.9 0.003 90);
+  --ring: oklch(0.17 0.005 270);
+  --ink: oklch(0.15 0.01 270);
+  --ink-foreground: oklch(0.99 0 0);
+  --tag-food: oklch(0.6 0.13 240);
+  --tag-skin: oklch(0.47 0.17 28);
+  --tag-med: oklch(0.7 0.1 230);
+  --tag-home: oklch(0.92 0.02 80);
+  --tag-home-foreground: oklch(0.2 0.01 60);
+  --shadow-soft: 0 6px 20px -10px oklch(0.2 0 0 / 0.25);
 }
 
 @layer base {
@@ -71,9 +85,13 @@
   }
 }
 
-@utility font-display { font-family: var(--font-display); }
+@utility font-display-family { font-family: var(--font-display); }
 @utility shadow-soft { box-shadow: var(--shadow-soft); }
 @utility low-conf {
   background: var(--warn-soft);
   outline: 1.5px dashed var(--warn);
 }
+
+@utility font-display { font-weight: 900; letter-spacing: -0.01em; }
+@utility sticker { filter: drop-shadow(0 0 0 white) drop-shadow(2px 0 0 white) drop-shadow(-2px 0 0 white) drop-shadow(0 2px 0 white) drop-shadow(0 -2px 0 white) drop-shadow(0 4px 6px oklch(0.2 0 0 / 0.2)); }
+@utility dash-sep { border-bottom: 1.5px dashed var(--border); }

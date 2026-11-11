@@ -1,26 +1,22 @@
 import { Link } from "@tanstack/react-router";
-import { Bot, Home, Package } from "lucide-react";
-
-const tabs = [
-  { to: "/", icon: <Home className="h-5 w-5" />, label: "首页" },
-  { to: "/ai", icon: <Bot className="h-5 w-5" />, label: "AI 助手" },
-  { to: "/items", icon: <Package className="h-5 w-5" />, label: "物品" },
-];
+import { Home, Plus, Archive } from "lucide-react";
 
 export function BottomNav() {
   return (
-    <nav className="flex border-t bg-card pb-[env(safe-area-inset-bottom)]">
-      {tabs.map((t) => (
-        <Link
-          key={t.to}
-          to={t.to}
-          activeProps={{ className: "text-primary" }}
-          className="flex flex-1 flex-col items-center gap-0.5 py-2 text-[11px] text-muted-foreground"
-        >
-          {t.icon}
-          {t.label}
+    <div className="px-4 pb-[calc(env(safe-area-inset-bottom)+12px)] pt-2">
+      <nav className="flex items-center justify-around rounded-full border-2 border-ink bg-card py-2 shadow-soft">
+        <Link to="/" aria-label="首页" activeOptions={{ exact: true }} activeProps={{ className: "text-ink" }} inactiveProps={{ className: "text-muted-foreground" }} className="grid h-10 w-14 place-items-center">
+          <Home className="h-6 w-6" strokeWidth={2.4} />
         </Link>
-      ))}
-    </nav>
+        <Link to="/ai" search={{}} aria-label="AI 助手" className="relative grid h-11 w-16 place-items-center rounded-full bg-ink text-ink-foreground active:scale-95">
+          <span className="absolute -top-1.5 left-2 h-3 w-3 rotate-45 rounded-sm bg-ink" />
+          <span className="absolute -top-1.5 right-2 h-3 w-3 rotate-45 rounded-sm bg-ink" />
+          <Plus className="relative h-6 w-6" strokeWidth={3} />
+        </Link>
+        <Link to="/items" aria-label="物品" activeProps={{ className: "text-ink" }} inactiveProps={{ className: "text-muted-foreground" }} className="grid h-10 w-14 place-items-center">
+          <Archive className="h-6 w-6" strokeWidth={2.4} />
+        </Link>
+      </nav>
+    </div>
   );
 }

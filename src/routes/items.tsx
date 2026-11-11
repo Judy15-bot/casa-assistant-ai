@@ -1,10 +1,12 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Trash2, Plus, Search, X, MapPin, Tags, SearchX, PackagePlus } from "lucide-react";
+import { Camera, Loader2, Trash2, Plus, Search, X, MapPin, Tags, SearchX, PackagePlus } from "lucide-react";
 import type { Item } from "@/lib/home-ai";
 import { addItems, deleteItem, loadItems, updateItem, useItems } from "@/lib/store";
-import { HeaderActions } from "@/components/HeaderActions";
-import { ItemCard, Field } from "@/components/shared";
+import { HeaderActions, Logo } from "@/components/HeaderActions";
+import { ItemCard, Field, ListBox } from "@/components/shared";
+import { cutoutImage } from "@/lib/cutout";
+import { fileToDataUrl, shrink } from "@/lib/image";
 import { BottomNav } from "@/components/BottomNav";
 
 export const Route = createFileRoute("/items")({
@@ -35,24 +37,24 @@ function ItemsPage() {
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background">
-      <header className="sticky top-0 z-10 flex items-center justify-between border-b border-border bg-background/90 px-4 pb-3 pt-6 backdrop-blur">
-        <h1 className="font-display text-2xl font-bold">家底</h1>
+      <header className="sticky top-0 z-10 flex items-center justify-between bg-background/90 px-4 pb-3 pt-6 backdrop-blur">
+        <Logo />
         <HeaderActions />
       </header>
 
-      <main className="flex-1 px-4 pb-40">
+      <main className="flex-1 px-4 pb-32">
         <div className="pt-4">
           <div className="flex items-center justify-between gap-3">
-            <h2 className="font-display text-xl font-bold">物品</h2>
-            <span className="rounded-full bg-secondary px-2.5 py-1 text-xs font-medium text-secondary-foreground">共 {items.length} 件</span>
+            <h2 className="font-display text-2xl text-ink">物品库</h2>
+            <span className="text-xs text-muted-foreground">共 <b className="font-display text-xl text-ink">{items.length}</b> 件物品</span>
           </div>
           <div className="mt-3 flex gap-2">
-            <label className="flex flex-1 items-center gap-2 rounded-full border bg-card px-3 py-2.5 shadow-sm transition focus-within:border-primary focus-within:ring-2 focus-within:ring-ring/25">
+            <label className="flex flex-1 items-center gap-2 rounded-full border-2 border-border bg-card px-3 py-2.5 transition focus-within:border-ink">
               <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
               <input value={q} onChange={(e) => setQ(e.target.value)} placeholder="按名称搜索物品" className="w-full bg-transparent text-sm outline-none" />
               {q && <button aria-label="清空" onClick={() => setQ("")}><X className="h-4 w-4 shrink-0 text-muted-foreground" /></button>}
             </label>
-            <button onClick={() => setEdit(blank())} className="flex shrink-0 items-center gap-1 rounded-full bg-primary px-4 text-sm font-medium text-primary-foreground shadow-sm transition active:scale-95"><Plus className="h-4 w-4" />新增</button>
+            <button onClick={() => setEdit(blank())} className="flex shrink-0 items-center gap-1 rounded-full bg-ink px-4 text-sm font-bold text-ink-foreground transition active:scale-95"><Plus className="h-4 w-4" />新增</button>
           </div>
         </div>
         {kw && shown.length === 0 ? (
@@ -101,9 +103,9 @@ function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void 
   return (
     <div className="pt-4">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <div className="inline-flex rounded-full bg-muted p-1 text-sm">
+        <div className="inline-flex rounded-full border-2 border-ink bg-card p-0.5 text-sm">
           {(["location", "category"] as const).map((k) => (
-            <button key={k} onClick={() => setBy(k)} className={`rounded-full px-4 py-1.5 transition ${by === k ? "bg-card font-medium shadow-sm" : "text-muted-foreground"}`}>
+            <button key={k} onClick={() => setBy(k)} className={`rounded-full px-4 py-1.5 transition ${by === k ? "bg-ink font-bold text-ink-foreground" : "text-muted-foreground"}`}>
               {k === "location" ? "按位置" : "按品类"}
             </button>
           ))}
@@ -113,15 +115,16 @@ function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void 
         {Object.entries(groups).map(([g, list]) => (
           <section key={g}>
             <div className="mb-2 flex items-center gap-1.5">
-              {by === "location" ? <MapPin className="h-3.5 w-3.5 text-muted-foreground" /> : <Tags className="h-3.5 w-3.5 text-muted-foreground" />}
-              <h3 className="text-sm font-semibold">{g}</h3>
+              <span className="text-base font-black leading-none text-primary">✻</span>
+              {by === "location" ? <MapPin className="h-3.5 w-3.5 text-ink" /> : <Tags className="h-3.5 w-3.5 text-ink" />}
+              <h3 className="font-display text-base text-ink">{g}</h3>
               <span className="rounded-full bg-muted px-1.5 py-0.5 text-[11px] leading-none text-muted-foreground">{list.length}</span>
             </div>
-            <div className="space-y-2">
+            <ListBox>
               {list.map((i) => (
-                <button key={i.id} onClick={() => onEdit(i)} className="block w-full text-left transition active:scale-[0.99]"><ItemCard item={i} /></button>
+                <button key={i.id} onClick={() => onEdit(i)} className="block w-full text-left transition active:bg-muted"><ItemCard item={i} chevron /></button>
               ))}
-            </div>
+            </ListBox>
           </section>
         ))}
       </div>
@@ -131,11 +134,31 @@ function ItemsTab({ items, onEdit }: { items: Item[]; onEdit: (i: Item) => void 
 
 function EditSheet({ item, onClose, onSave, onDelete }: { item: Item; onClose: () => void; onSave: (i: Item) => void; onDelete?: (() => void) | undefined }) {
   const [it, setIt] = useState(item);
+  const [busy, setBusy] = useState(false);
+  const [note, setNote] = useState("");
+  const pick = async (f: File | undefined) => {
+    if (!f) return;
+    setBusy(true); setNote("正在抠图…");
+    try {
+      const raw = await shrink(await fileToDataUrl(f), 1280, "image/jpeg");
+      const cut = await cutoutImage(raw);
+      const image = cut ?? (await shrink(raw, 384));
+      setIt((x) => ({ ...x, image }));
+      setNote(cut ? "已抠图" : "抠图没成功，先用原图");
+    } catch { setNote("图片读取失败"); } finally { setBusy(false); }
+  };
   return (
     <div className="fixed inset-0 z-30 flex items-end bg-foreground/30" onClick={onClose}>
       <div className="mx-auto w-full max-w-md rounded-t-3xl bg-background p-5 pb-8" onClick={(e) => e.stopPropagation()}>
         <div className="mx-auto mb-4 h-1 w-10 rounded-full bg-border" />
-        <h3 className="mb-4 font-display text-lg font-semibold">{item.id ? "编辑物品" : "新增物品"}</h3>
+        <h3 className="mb-3 font-display text-lg text-ink">{item.id ? "编辑物品" : "新增物品"}</h3>
+        <label className="mb-4 flex cursor-pointer flex-col items-center gap-1">
+          <div className="grid h-32 w-full place-items-center rounded-2xl border-2 border-dashed border-border bg-muted/50">
+            {busy ? <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /> : it.image ? <img src={it.image} alt={it.name} className="sticker max-h-28 object-contain" /> : <span className="flex flex-col items-center gap-1 text-xs text-muted-foreground"><Camera className="h-6 w-6" />上传物品照片，自动抠图</span>}
+          </div>
+          <span className="text-[11px] text-muted-foreground">{note || (it.image ? "点图片可更换" : "")}</span>
+          <input type="file" accept="image/*" hidden onChange={(e) => { void pick(e.target.files?.[0]); e.target.value = ""; }} />
+        </label>
         <div className="grid grid-cols-2 gap-2">
           <Field label="名称" value={it.name} onChange={(v) => setIt({ ...it, name: v })} />
           <Field label="品类" value={it.category} onChange={(v) => setIt({ ...it, category: v })} />
@@ -146,8 +169,8 @@ function EditSheet({ item, onClose, onSave, onDelete }: { item: Item; onClose: (
           {it.id && <div className="flex flex-col justify-center rounded-xl bg-muted px-2.5 py-1.5 text-xs text-muted-foreground">来源：{it.source}<br />录入：{it.createdAt}</div>}
         </div>
         <div className="mt-5 flex gap-2">
-          {onDelete && <button onClick={onDelete} className="flex items-center gap-1 rounded-full border px-4 py-2.5 text-sm text-destructive"><Trash2 className="h-4 w-4" />删除</button>}
-          <button onClick={() => onSave(it)} className="flex-1 rounded-full bg-primary py-2.5 text-sm font-medium text-primary-foreground">保存</button>
+          {onDelete && <button onClick={onDelete} className="flex items-center gap-1 rounded-full border-2 border-ink bg-muted px-4 py-2.5 text-sm font-bold text-ink"><Trash2 className="h-4 w-4" />删除</button>}
+          <button onClick={() => onSave(it)} disabled={busy} className="flex-1 rounded-full border-2 border-ink bg-primary py-2.5 text-sm font-bold text-primary-foreground disabled:opacity-50">保存</button>
         </div>
       </div>
     </div>
