@@ -1,3 +1,4 @@
+import { AudioLines, Plus } from "lucide-react";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { Bot, Camera, Check, ImageIcon, Mic, Send, Sparkles, Square, X } from "lucide-react";
@@ -237,41 +238,29 @@ function AiPage() {
 
       {/* AI input */}
       <div className="fixed inset-x-0 bottom-0 z-20 mx-auto max-w-md">
-        <div className="mx-3 mb-2 rounded-3xl border bg-card p-2 shadow-soft">
+        <div className="mx-3 mb-1 rounded-[28px] bg-card px-3 py-2 shadow-soft">
           {recording ? (
-            <button
-              onClick={() => recog.current?.stop()}
-              className="flex w-full items-center justify-center gap-2 rounded-2xl bg-warn-soft py-3 text-sm font-medium text-warn"
-            >
-              <span className="h-2.5 w-2.5 animate-ping rounded-full bg-warn" /> 正在聆听… 点击结束
+            <button onClick={() => recog.current?.stop()} className="flex w-full items-center justify-center gap-2 rounded-2xl py-2.5 text-sm font-bold text-primary">
+              <span className="h-2.5 w-2.5 animate-ping rounded-full bg-primary" /> 正在聆听… 点击结束
             </button>
           ) : (
-            <form onSubmit={(e) => { e.preventDefault(); void send(input); }} className="flex items-center gap-1">
-              <input
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="说一句：买了三包纸巾放卫生间…"
-                className="min-w-0 flex-1 bg-transparent px-3 py-2.5 text-sm outline-none placeholder:text-muted-foreground"
-              />
+            <form onSubmit={(e) => { e.preventDefault(); void send(input); }} className="flex items-center gap-2">
+              <button type="button" aria-label="拍照识别" onClick={() => photoRef.current?.click()} className="grid h-10 w-10 shrink-0 place-items-center text-ink active:scale-95"><Camera className="h-7 w-7" strokeWidth={2.2} /></button>
+              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder="发消息或按住说话" className="min-w-0 flex-1 bg-transparent py-2.5 text-base outline-none placeholder:text-muted-foreground" />
               {thinking ? (
-                <button type="button" aria-label="停止生成" onClick={stopRun} title="点击结束" className="flex h-10 items-center gap-1.5 rounded-full bg-warn-soft px-3 text-sm font-medium text-warn">
-                  <span className="h-2.5 w-2.5 animate-ping rounded-full bg-warn" />
-                  正在执行
-                  <Square className="h-3 w-3 fill-current" />
+                <button type="button" aria-label="停止生成" onClick={stopRun} title="点击结束" className="flex h-9 shrink-0 items-center gap-1.5 rounded-full border-2 border-ink px-3 text-xs font-bold text-ink">
+                  <span className="h-2 w-2 animate-ping rounded-full bg-primary" />正在执行<Square className="h-3 w-3 fill-current" />
                 </button>
               ) : input ? (
-                <button type="submit" aria-label="发送" className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Send className="h-4 w-4" /></button>
+                <button type="submit" aria-label="发送" className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-ink text-ink-foreground"><Send className="h-4 w-4" /></button>
               ) : (
-                <button type="button" aria-label="语音" onClick={startVoice} className="grid h-10 w-10 place-items-center rounded-full bg-primary text-primary-foreground"><Mic className="h-4 w-4" /></button>
+                <button type="button" aria-label="语音" onClick={startVoice} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-[2.5px] border-ink text-ink active:scale-95"><AudioLines className="h-4 w-4" strokeWidth={2.6} /></button>
               )}
+              <button type="button" aria-label="上传订单截图" onClick={() => shotRef.current?.click()} className="grid h-9 w-9 shrink-0 place-items-center rounded-full border-[2.5px] border-ink text-ink active:scale-95"><Plus className="h-5 w-5" strokeWidth={2.8} /></button>
             </form>
           )}
-          <div className="mt-1 flex gap-2 px-1">
-            <Chip icon={<Camera className="h-3.5 w-3.5" />} label="拍照识别" onClick={() => photoRef.current?.click()} />
-            <Chip icon={<ImageIcon className="h-3.5 w-3.5" />} label="订单截图" onClick={() => shotRef.current?.click()} />
-            <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void onFile(e.target.files?.[0], "拍照"); e.target.value = ""; }} />
-            <input ref={shotRef} type="file" accept="image/*" hidden onChange={(e) => { void onFile(e.target.files?.[0], "截图"); e.target.value = ""; }} />
-          </div>
+          <input ref={photoRef} type="file" accept="image/*" capture="environment" hidden onChange={(e) => { void onFile(e.target.files?.[0], "拍照"); e.target.value = ""; }} />
+          <input ref={shotRef} type="file" accept="image/*" hidden onChange={(e) => { void onFile(e.target.files?.[0], "截图"); e.target.value = ""; }} />
         </div>
         <BottomNav />
       </div>
